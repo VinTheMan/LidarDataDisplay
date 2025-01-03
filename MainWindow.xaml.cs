@@ -1,15 +1,25 @@
 ﻿using System;
+using System.IO;
 using System.IO.Ports;
 using System.Windows;
 using System.Windows.Controls; // Add this using directive
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+
+// TO-DO :
+// color
+// image refresh rate
+// ask Jay baud rate
 
 namespace UsbApp
 {
     public partial class MainWindow : Window
     {
+        private const int AmbientDataSize = 576; // Size of the ambient data
+        private const int PacketSize = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size
+
         private SerialPort _serialPort;
         private WriteableBitmap _bitmap;
         private int _currentLine = 0;
@@ -17,6 +27,11 @@ namespace UsbApp
         private DispatcherTimer _timer;
         private int _packetIndex = 0;
         private Random _rand;
+        private Point _lastMousePosition;
+        private bool _isDragging;
+        private double _translateX = 0;
+        private double _translateY = 0;
+        private bool _isTranslationUpdated = false;
 
         public MainWindow()
         {
@@ -25,6 +40,8 @@ namespace UsbApp
             InitializeBitmap();
             InitializeTimer();
             _rand = new Random(); // Initialize the random number generator
+
+            CompositionTarget.Rendering += CompositionTarget_Rendering;
         }
 
         private void PopulateSerialPortComboBox()
@@ -94,6 +111,36 @@ namespace UsbApp
             }
         }
 
+        private void SaveImageButton_Click(object sender, RoutedEventArgs e)
+        {
+            SaveImage();
+        }
+
+        private void SaveImage()
+        {
+            // Create a file dialog to save the image
+            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.FileName = "Image"; // Default file name
+            dlg.DefaultExt = ".png"; // Default file extension
+            dlg.Filter = "PNG Files (*.png)|*.png|All Files (*.*)|*.*"; // Filter files by extension
+
+            // Show save file dialog box
+            bool? result = dlg.ShowDialog();
+
+            // Process save file dialog box results
+            if (result == true)
+            {
+                // Save the image
+                string filename = dlg.FileName;
+                using (FileStream stream = new FileStream(filename, FileMode.Create))
+                {
+                    PngBitmapEncoder encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(_bitmap));
+                    encoder.Save(stream);
+                }
+            }
+        }
+
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             byte[] buffer = new byte[_serialPort.BytesToRead];
@@ -104,8 +151,7 @@ namespace UsbApp
         private void ParseMipiPacket(byte[] data)
         {
             // Ensure the data length matches the expected packet size
-            const int expectedPacketSize = 2 + 1 + 2 + (576 * 3) + 2;
-            if (data.Length != expectedPacketSize)
+            if (data.Length != PacketSize)
             {
                 DataTextBox.AppendText("Invalid packet size.\n");
                 return;
@@ -115,9 +161,9 @@ namespace UsbApp
             ushort header = (ushort)(data[0] | (data[1] << 8));
             byte psn = data[2];
             ushort packSize = (ushort)(data[3] | (data[4] << 8));
-            byte[] ambientData = new byte[576 * 3];
-            Array.Copy(data, 5, ambientData, 0, 576 * 3);
-            ushort checksum = (ushort)(data[5 + (576 * 3)] | (data[6 + (576 * 3)] << 8));
+            byte[] ambientData = new byte[AmbientDataSize * 3];
+            Array.Copy(data, 5, ambientData, 0, AmbientDataSize * 3);
+            ushort checksum = (ushort)(data[5 + (AmbientDataSize * 3)] | (data[6 + (AmbientDataSize * 3)] << 8));
 
             // Print extracted data to the text box
             DataTextBox.AppendText($"Header: 0x{header:X4}\n");
@@ -148,7 +194,7 @@ namespace UsbApp
             }
 
             // Store the ambient data
-            Array.Copy(ambientData, 0, _imageData, _currentLine * 576 * 3, 576 * 3);
+            Array.Copy(ambientData, 0, _imageData, _currentLine * AmbientDataSize * 3, AmbientDataSize * 3);
             _currentLine++;
 
             // If we have received all 105 lines, update the bitmap
@@ -171,15 +217,15 @@ namespace UsbApp
 
         private void InitializeBitmap()
         {
-            _bitmap = new WriteableBitmap(105, 576, 96, 96, PixelFormats.Gray8, null);
+            _bitmap = new WriteableBitmap(105, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
             ImageCanvas.Background = new ImageBrush(_bitmap);
-            _imageData = new byte[105 * 576 * 3];
+            _imageData = new byte[105 * AmbientDataSize * 3];
         }
 
         private void UpdateBitmap()
         {
-            byte[] grayData = new byte[105 * 576];
-            for (int i = 0; i < 105 * 576; i++)
+            byte[] grayData = new byte[105 * AmbientDataSize];
+            for (int i = 0; i < 105 * AmbientDataSize; i++)
             {
                 int r = _imageData[i * 3];
                 int g = _imageData[i * 3 + 1];
@@ -187,7 +233,7 @@ namespace UsbApp
                 grayData[i] = (byte)((r + g + b) / 3);
             }
 
-            _bitmap.WritePixels(new Int32Rect(0, 0, 105, 576), grayData, 105, 0);
+            _bitmap.WritePixels(new Int32Rect(0, 0, 105, AmbientDataSize), grayData, 105, 0);
         }
 
         private void InitializeTimer()
@@ -221,8 +267,7 @@ namespace UsbApp
 
         private byte[] GenerateMockPacket(int psn, Scenario scenario)
         {
-            const int packetSize = 2 + 1 + 2 + (576 * 3) + 2;
-            byte[] packet = new byte[packetSize];
+            byte[] packet = new byte[PacketSize];
 
             // Header
             packet[0] = 0x55;
@@ -236,7 +281,7 @@ namespace UsbApp
             packet[4] = 0x06;
 
             // AmbientData
-            for (int i = 5; i < 5 + (576 * 3); i++)
+            for (int i = 5; i < 5 + (AmbientDataSize * 3); i++)
             {
                 packet[i] = (byte)_rand.Next(256);
             }
@@ -250,8 +295,8 @@ namespace UsbApp
                     break;
                 case Scenario.ChecksumMismatch:
                     // Do not calculate checksum correctly
-                    packet[packetSize - 2] = 0x00;
-                    packet[packetSize - 1] = 0x00;
+                    packet[PacketSize - 2] = 0x00;
+                    packet[PacketSize - 1] = 0x00;
                     return packet;
                 case Scenario.RandomData:
                     // Randomize entire packet
@@ -260,9 +305,9 @@ namespace UsbApp
             }
 
             // Checksum
-            ushort checksum = CalculateChecksum(packet, packetSize - 2);
-            packet[packetSize - 2] = (byte)(checksum & 0xFF);
-            packet[packetSize - 1] = (byte)((checksum >> 8) & 0xFF);
+            ushort checksum = CalculateChecksum(packet, PacketSize - 2);
+            packet[PacketSize - 2] = (byte)(checksum & 0xFF);
+            packet[PacketSize - 1] = (byte)((checksum >> 8) & 0xFF);
 
             return packet;
         }
@@ -272,6 +317,52 @@ namespace UsbApp
             _serialPort?.Close();
             base.OnClosed(e);
         }
+
+        private void ImageCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _lastMousePosition = e.GetPosition(ImageCanvas);
+            _isDragging = true;
+            ImageCanvas.CaptureMouse();
+        }
+
+        private void ImageCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isDragging)
+            {
+                Point currentPosition = e.GetPosition(ImageCanvas);
+                double offsetX = currentPosition.X - _lastMousePosition.X;
+                double offsetY = currentPosition.Y - _lastMousePosition.Y;
+
+                _translateX += offsetX;
+                _translateY += offsetY;
+                _isTranslationUpdated = true;
+
+                _lastMousePosition = currentPosition;
+            }
+        }
+
+        private void ImageCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _isDragging = false;
+            ImageCanvas.ReleaseMouseCapture();
+        }
+
+        private void ImageCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            double zoomLevel = ImageScaleTransform.ScaleX + (e.Delta > 0 ? 0.1 : -0.1);
+            zoomLevel = Math.Max(1, zoomLevel); // Ensure the zoom level is at least 1
+            ImageScaleTransform.ScaleX = zoomLevel;
+            ImageScaleTransform.ScaleY = zoomLevel;
+        }
+
+        private void CompositionTarget_Rendering(object sender, EventArgs e)
+        {
+            if (_isTranslationUpdated)
+            {
+                ImageTranslateTransform.X = _translateX;
+                ImageTranslateTransform.Y = _translateY;
+                _isTranslationUpdated = false;
+            }
+        }
     }
 }
-
