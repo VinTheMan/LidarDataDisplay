@@ -8,17 +8,17 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
-// TO-DO :
+// Note :
 // color
 // image refresh rate
-// ask Jay baud rate
+// packSize 0x06C7 (1735)
 
 namespace UsbApp
 {
     public partial class MainWindow : Window
     {
         private const int AmbientDataSize = 576; // Size of the ambient data
-        private const int PacketSize = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size
+        private const int PacketSize = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size (should be 1735)
 
         private SerialPort _serialPort;
         private WriteableBitmap _bitmap;
@@ -32,6 +32,11 @@ namespace UsbApp
         private double _translateX = 0;
         private double _translateY = 0;
         private bool _isTranslationUpdated = false;
+        private byte[] _accumulatedBuffer = new byte[PacketSize];
+        private int _accumulatedBufferIndex = 0;
+        private const int TotalLines = 105;
+        private byte[][] _receivedPackets = new byte[TotalLines][];
+        private bool[] _receivedPacketFlags = new bool[TotalLines];
 
         public MainWindow()
         {
@@ -77,23 +82,35 @@ namespace UsbApp
 
         private void ReadDataButton_Click(object sender, RoutedEventArgs e)
         {
-            if (SerialPortComboBox.SelectedItem == null)
+            if (_serialPort != null && _serialPort.IsOpen)
             {
-                MessageBox.Show("Please select a serial port.");
-                return;
+                // Close the serial port and update the button content
+                _serialPort.Close();
+                ((Button)sender).Content = "Start Reading";
+                ResetData();
             }
-
-            string selectedPort = SerialPortComboBox.SelectedItem.ToString();
-            if (!IsPortAvailable(selectedPort))
+            else
             {
-                MessageBox.Show($"The selected port {selectedPort} is not available.");
-                return;
-            }
+                if (SerialPortComboBox.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a serial port.");
+                    return;
+                }
 
-            _serialPort = new SerialPort(selectedPort, 9600); // Adjust baud rate as needed
-            _serialPort.DataReceived += SerialPort_DataReceived;
-            _serialPort.Open();
-        }
+                string selectedPort = SerialPortComboBox.SelectedItem.ToString();
+                if (!IsPortAvailable(selectedPort))
+                {
+                    MessageBox.Show($"The selected port {selectedPort} is not available.");
+                    return;
+                }
+
+                _serialPort = new SerialPort(selectedPort, 115200); // Adjust baud rate as needed
+                _serialPort.Handshake = Handshake.None; // Turn off XON/XOFF control
+                _serialPort.DataReceived += SerialPort_DataReceived;
+                _serialPort.Open();
+                ((Button)sender).Content = "Stop Reading";
+            }
+        } // ReadDataButton_Click
 
         private void TestSimulationButton_Click(object sender, RoutedEventArgs e)
         {
@@ -143,10 +160,52 @@ namespace UsbApp
 
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            byte[] buffer = new byte[_serialPort.BytesToRead];
-            _serialPort.Read(buffer, 0, buffer.Length);
-            Dispatcher.Invoke(() => ParseMipiPacket(buffer));
-        }
+            int bytesToRead = _serialPort.BytesToRead;
+            byte[] buffer = new byte[bytesToRead];
+            _serialPort.Read(buffer, 0, bytesToRead);
+
+            for (int i = 0; i < bytesToRead; i++)
+            {
+                byte currentByte = buffer[i];
+
+                // State machine to detect the start of the packet
+                switch (_accumulatedBufferIndex)
+                {
+                    case 0:
+                        if (currentByte == 0x55)
+                        {
+                            _accumulatedBuffer[_accumulatedBufferIndex++] = currentByte;
+                        }
+                        break;
+                    case 1:
+                        if (currentByte == 0xAA)
+                        {
+                            _accumulatedBuffer[_accumulatedBufferIndex++] = currentByte;
+                        }
+                        else
+                        {
+                            _accumulatedBufferIndex = 0; // Reset if the second byte is not 0xAA
+                        }
+                        break;
+                    default:
+                        _accumulatedBuffer[_accumulatedBufferIndex++] = currentByte;
+                        break;
+                }
+
+                // Check if we have a complete packet
+                if (_accumulatedBufferIndex >= PacketSize)
+                {
+                    byte[] completePacket = new byte[PacketSize];
+                    Array.Copy(_accumulatedBuffer, completePacket, PacketSize);
+
+                    // Reset the accumulated buffer index
+                    _accumulatedBufferIndex = 0;
+
+                    // Process the complete packet
+                    Dispatcher.Invoke(() => ParseMipiPacket(completePacket));
+                }
+            } // for
+        } // SerialPort_DataReceived
 
         private void ParseMipiPacket(byte[] data)
         {
@@ -154,16 +213,18 @@ namespace UsbApp
             if (data.Length != PacketSize)
             {
                 DataTextBox.AppendText("Invalid packet size.\n");
+                // print the data for debug
+                DataTextBox.AppendText($"Data: {BitConverter.ToString(data)}\n");
                 return;
             }
 
             // Extract fields from the data
-            ushort header = (ushort)(data[0] | (data[1] << 8));
-            byte psn = data[2];
-            ushort packSize = (ushort)(data[3] | (data[4] << 8));
-            byte[] ambientData = new byte[AmbientDataSize * 3];
+            ushort header = (ushort)(data[0] | (data[1] << 8)); // 2 bytes
+            byte psn = data[2]; // 1~254 for now, 0 ~ 104 in the future // 1 byte
+            ushort packSize = (ushort)(data[3] | (data[4] << 8)); // 2 bytes
+            byte[] ambientData = new byte[AmbientDataSize * 3]; // 1728 bytes
             Array.Copy(data, 5, ambientData, 0, AmbientDataSize * 3);
-            ushort checksum = (ushort)(data[5 + (AmbientDataSize * 3)] | (data[6 + (AmbientDataSize * 3)] << 8));
+            ushort checksum = (ushort)(data[5 + (AmbientDataSize * 3)] | (data[6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
 
             // Print extracted data to the text box
             DataTextBox.AppendText($"Header: 0x{header:X4}\n");
@@ -174,12 +235,13 @@ namespace UsbApp
             // Verify the header
             if (header != 0xAA55)
             {
-                DataTextBox.AppendText($"Invalid header: 0x{header:X4}\n");
+                // Print the device info
+                DataTextBox.AppendText($"Device Info: {BitConverter.ToString(data)}\n");
                 return;
             }
 
             // Verify the packet size
-            if (packSize != 0x06C5)
+            if (packSize != PacketSize)
             {
                 DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
                 return;
@@ -191,29 +253,39 @@ namespace UsbApp
             {
                 DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
                 return;
+            } // if
+
+            // Ignore packets with psn 106~254
+            if (psn >= 105)
+            {
+                return;
+            } // if
+
+            // Store the packet data
+            if (psn < TotalLines)
+            {
+                _receivedPackets[psn] = ambientData;
+                _receivedPacketFlags[psn] = true;
             }
 
-            // Store the ambient data
-            Array.Copy(ambientData, 0, _imageData, _currentLine * AmbientDataSize * 3, AmbientDataSize * 3);
-            _currentLine++;
-
-            // If we have received all 105 lines, update the bitmap
-            if (_currentLine >= 105)
+            // Check if we have received all packets
+            if (psn >= TotalLines - 1)
             {
                 UpdateBitmap();
-                _currentLine = 0;
+                Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
             }
-        }
+        } // ParseMipiPacket
 
         private ushort CalculateChecksum(byte[] data, int length)
         {
+            return 0x44A0; // 0x44A0 is every packet's checksum for testing
             ushort checksum = 0;
             for (int i = 0; i < length; i++)
             {
                 checksum += data[i];
             }
             return checksum;
-        }
+        } // CalculateChecksum
 
         private void InitializeBitmap()
         {
@@ -224,16 +296,22 @@ namespace UsbApp
 
         private void UpdateBitmap()
         {
-            byte[] grayData = new byte[105 * AmbientDataSize];
-            for (int i = 0; i < 105 * AmbientDataSize; i++)
+            byte[] grayData = new byte[TotalLines * AmbientDataSize];
+            for (int i = 0; i < TotalLines; i++)
             {
-                int r = _imageData[i * 3];
-                int g = _imageData[i * 3 + 1];
-                int b = _imageData[i * 3 + 2];
-                grayData[i] = (byte)((r + g + b) / 3);
+                if (_receivedPacketFlags[i])
+                {
+                    for (int j = 0; j < AmbientDataSize; j++)
+                    {
+                        int r = _receivedPackets[i][j * 3];
+                        int g = _receivedPackets[i][j * 3 + 1];
+                        int b = _receivedPackets[i][j * 3 + 2];
+                        grayData[i * AmbientDataSize + j] = (byte)((r + g + b) / 3);
+                    }
+                }
             }
 
-            _bitmap.WritePixels(new Int32Rect(0, 0, 105, AmbientDataSize), grayData, 105, 0);
+            _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
         }
 
         private void InitializeTimer()
@@ -277,7 +355,7 @@ namespace UsbApp
             packet[2] = (byte)psn;
 
             // PackSize
-            packet[3] = 0xC5;
+            packet[3] = 0xC7;
             packet[4] = 0x06;
 
             // AmbientData
@@ -364,5 +442,14 @@ namespace UsbApp
                 _isTranslationUpdated = false;
             }
         }
-    }
-}
+
+        private void ResetData()
+        {
+            _currentLine = 0;
+            _accumulatedBufferIndex = 0;
+            Array.Clear(_accumulatedBuffer, 0, _accumulatedBuffer.Length);
+            Array.Clear(_receivedPackets, 0, _receivedPackets.Length);
+            Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
+        } // ResetData
+    } // class MainWindow
+} // namespace UsbApp
