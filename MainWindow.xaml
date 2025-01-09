@@ -23,6 +23,16 @@
             <TextBox x:Name="DataTextBox" HorizontalAlignment="Left" Margin="30,30,0,0" Width="490" Height="300" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
             <!-- TextBlock to display coordinate and ambient data value -->
             <TextBlock x:Name="CoordinateDataTextBlock" HorizontalAlignment="Left" Margin="30,10,0,0" />
+            <!-- Add the Canvas for the coordinate system -->
+            <Canvas x:Name="CoordinateSystemCanvas" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="60,30,0,0" Width="60" Height="120">
+                <Rectangle Stroke="Black" Width="60" Height="120"/>
+                <Line X1="0" Y1="60" X2="60" Y2="60" Stroke="Red" StrokeThickness="1"/>
+                <Line X1="30" Y1="0" X2="30" Y2="120" Stroke="Red" StrokeThickness="1"/>
+                <TextBlock Text="{Binding TopLeftCoordinate}" Canvas.Left="-20" Canvas.Top="-15" FontSize="10"/>
+                <TextBlock Text="{Binding TopRightCoordinate}" Canvas.Left="50" Canvas.Top="-15" FontSize="10"/>
+                <TextBlock Text="{Binding BottomLeftCoordinate}" Canvas.Left="-20" Canvas.Top="120" FontSize="10"/>
+                <TextBlock Text="{Binding BottomRightCoordinate}" Canvas.Left="50" Canvas.Top="120" FontSize="10"/>
+            </Canvas>
         </StackPanel>
         <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="10,30,30,0">
             <Canvas x:Name="ImageCanvas" Width="105" Height="576" Background="Black"

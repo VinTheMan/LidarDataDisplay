@@ -1,6 +1,8 @@
 ﻿using System;
+using System.ComponentModel;
 using System.IO;
 using System.IO.Ports;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls; // Add this using directive
 using System.Windows.Input;
@@ -38,17 +40,78 @@ namespace UsbApp
         private byte[][] _receivedPackets = new byte[TotalLines][];
         private bool[] _receivedPacketFlags = new bool[TotalLines];
         private Point? _clickedPoint = null;
+        private string _topLeftCoordinate;
+        private string _topRightCoordinate;
+        private string _bottomLeftCoordinate;
+        private string _bottomRightCoordinate;
+
+        public string TopLeftCoordinate
+        {
+            get => _topLeftCoordinate;
+            set
+            {
+                _topLeftCoordinate = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string TopRightCoordinate
+        {
+            get => _topRightCoordinate;
+            set
+            {
+                _topRightCoordinate = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string BottomLeftCoordinate
+        {
+            get => _bottomLeftCoordinate;
+            set
+            {
+                _bottomLeftCoordinate = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string BottomRightCoordinate
+        {
+            get => _bottomRightCoordinate;
+            set
+            {
+                _bottomRightCoordinate = value;
+                OnPropertyChanged();
+            }
+        }
 
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = this;
+            UpdateCoordinateLabels();
             PopulateSerialPortComboBox();
             InitializeBitmap();
             InitializeTimer();
             _rand = new Random(); // Initialize the random number generator
 
             CompositionTarget.Rendering += CompositionTarget_Rendering;
-        }
+        } // MainWindow
+
+        private void UpdateCoordinateLabels()
+        {
+            TopLeftCoordinate = "( 0, 0 )";
+            TopRightCoordinate = $"( {TotalLines}, 0 )";
+            BottomLeftCoordinate = $"( 0, {AmbientDataSize} )";
+            BottomRightCoordinate = $"( {TotalLines}, {AmbientDataSize} )";
+        } // UpdateCoordinateLabels
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string name = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        } // OnPropertyChanged
 
         private void PopulateSerialPortComboBox()
         {
