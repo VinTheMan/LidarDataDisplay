@@ -18,7 +18,11 @@
                 <Button Content="Read Data" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Click="ReadDataButton_Click"/>
                 <Button Content="Test Simulation" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Click="TestSimulationButton_Click"/>
             </Grid>
+            <!-- TextBlock to display image dimensions -->
+            <TextBlock x:Name="ImageDimensionsTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" />
             <TextBox x:Name="DataTextBox" HorizontalAlignment="Left" Margin="30,30,0,0" Width="490" Height="300" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+            <!-- TextBlock to display coordinate and ambient data value -->
+            <TextBlock x:Name="CoordinateDataTextBlock" HorizontalAlignment="Left" Margin="30,10,0,0" />
         </StackPanel>
         <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="10,30,30,0">
             <Canvas x:Name="ImageCanvas" Width="105" Height="576" Background="Black"

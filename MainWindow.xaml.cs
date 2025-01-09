@@ -37,6 +37,7 @@ namespace UsbApp
         private const int TotalLines = 105;
         private byte[][] _receivedPackets = new byte[TotalLines][];
         private bool[] _receivedPacketFlags = new bool[TotalLines];
+        private Point? _clickedPoint = null;
 
         public MainWindow()
         {
@@ -231,6 +232,7 @@ namespace UsbApp
             DataTextBox.AppendText($"PSN: 0x{psn:X2}\n");
             DataTextBox.AppendText($"Packet Size: 0x{packSize:X4}\n");
             DataTextBox.AppendText($"Checksum: 0x{checksum:X4}\n");
+            DataTextBox.AppendText($"---------------------------------------\n");
 
             // Verify the header
             if (header != 0xAA55)
@@ -245,7 +247,7 @@ namespace UsbApp
             {
                 DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
                 return;
-            }
+            } // if
 
             // Calculate and verify the checksum
             ushort calculatedChecksum = CalculateChecksum(data, data.Length - 2);
@@ -287,15 +289,79 @@ namespace UsbApp
             return checksum;
         } // CalculateChecksum
 
+        private void VerifyBitmapDimensions()
+        {
+            int expectedWidth = TotalLines;
+            int expectedHeight = AmbientDataSize;
+
+            if (_bitmap.PixelWidth != expectedWidth || _bitmap.PixelHeight != expectedHeight)
+            {
+                MessageBox.Show($"Bitmap dimensions are incorrect. Expected: {expectedWidth}x{expectedHeight}, Actual: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}");
+            } // if
+
+            ImageDimensionsTextBlock.Text = $"Image Dimensions: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}";
+        } // VerifyBitmapDimensions
+
+        private DrawingVisual CreateAxesVisual()
+        {
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                int width = _bitmap.PixelWidth;
+                int height = _bitmap.PixelHeight;
+
+                // Draw the horizontal axis
+                context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, height / 2), new Point(width, height / 2));
+
+                // Draw the vertical axis
+                context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, height));
+
+                // Draw the blue dot at the clicked point
+                if (_clickedPoint.HasValue)
+                {
+                    context.DrawEllipse(Brushes.Blue, null, _clickedPoint.Value, 3, 3);
+                }
+            }
+            return visual;
+        } // CreateAxesVisual
+
+        private void DrawAxes()
+        {
+            DrawingVisual axesVisual = CreateAxesVisual();
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(axesVisual);
+
+            // Combine the axes with the existing bitmap
+            DrawingVisual combinedVisual = new DrawingVisual();
+            using (DrawingContext context = combinedVisual.RenderOpen())
+            {
+                context.DrawImage(_bitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+                context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+            }
+
+            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            combinedBitmap.Render(combinedVisual);
+
+            // Update the ImageCanvas with the combined image
+            ImageCanvas.Background = new ImageBrush(combinedBitmap);
+        }
+        // DrawAxes
+
+
         private void InitializeBitmap()
         {
-            _bitmap = new WriteableBitmap(105, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
+            _bitmap = new WriteableBitmap(TotalLines, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
             ImageCanvas.Background = new ImageBrush(_bitmap);
-            _imageData = new byte[105 * AmbientDataSize * 3];
-        }
+            _imageData = new byte[TotalLines * AmbientDataSize * 3];
+            VerifyBitmapDimensions();
+            DrawAxes(); // Draw the axes on the image
+        } // InitializeBitmap
+
 
         private void UpdateBitmap()
         {
+            VerifyBitmapDimensions();
+
             byte[] grayData = new byte[TotalLines * AmbientDataSize];
             for (int i = 0; i < TotalLines; i++)
             {
@@ -306,13 +372,15 @@ namespace UsbApp
                         int r = _receivedPackets[i][j * 3];
                         int g = _receivedPackets[i][j * 3 + 1];
                         int b = _receivedPackets[i][j * 3 + 2];
-                        grayData[i * AmbientDataSize + j] = (byte)((r + g + b) / 3);
+                        grayData[j * TotalLines + i] = (byte)((r + g + b) / 3);
                     }
                 }
             }
 
             _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
-        }
+            DrawAxes(); // Redraw the axes after updating the bitmap
+        } // UpdateBitmap
+
 
         private void InitializeTimer()
         {
@@ -401,7 +469,37 @@ namespace UsbApp
             _lastMousePosition = e.GetPosition(ImageCanvas);
             _isDragging = true;
             ImageCanvas.CaptureMouse();
-        }
+
+            // Retrieve the coordinate of the clicked point
+            Point clickedPoint = e.GetPosition(ImageCanvas);
+            int x = (int)clickedPoint.X;
+            int y = (int)clickedPoint.Y;
+
+            // Ensure the coordinates are within the image bounds
+            if (x >= 0 && x < TotalLines && y >= 0 && y < AmbientDataSize)
+            {
+                // Calculate the index in the grayData array
+                int index = y * TotalLines + x;
+
+                // Retrieve the ambient data value
+                byte[] pixelData = new byte[4]; // Ensure the buffer is at least 4 bytes
+                Int32Rect rect = new Int32Rect(x, y, 1, 1);
+                _bitmap.CopyPixels(rect, pixelData, 4, 0); // Use a stride of 4
+                byte ambientDataValue = pixelData[0];
+
+                // Display the coordinate and ambient data value
+                CoordinateDataTextBlock.Text = $"Coordinate: ({x}, {y}), Ambient Data Value: {ambientDataValue}";
+
+                // Store the clicked point and redraw the axes
+                _clickedPoint = clickedPoint;
+                DrawAxes();
+            }
+            else
+            {
+                CoordinateDataTextBlock.Text = "Clicked point is outside the image bounds.";
+            }
+        } // ImageCanvas_MouseLeftButtonDown
+
 
         private void ImageCanvas_MouseMove(object sender, MouseEventArgs e)
         {
