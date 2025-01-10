@@ -13,14 +13,20 @@ using System.Windows.Threading;
 // Note :
 // color
 // image refresh rate
-// packSize 0x06C7 (1735)
+// packSize 0x06C7 (1735 bytes)
 
 namespace UsbApp
 {
     public partial class MainWindow : Window
     {
+        // data speed : 64 bytes per 0.01s (sleep(10000)) should be successfully received and displayed
         private const int AmbientDataSize = 576; // Size of the ambient data
         private const int PacketSize = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size (should be 1735)
+        private const int TotalLines = 105;
+
+        private const int BufferSize = PacketSize * TotalLines * 2; // Increase buffer size for potential board info
+        private byte[] _buffer = new byte[BufferSize];
+        private int _bufferIndex = 0;
 
         private SerialPort _serialPort;
         private WriteableBitmap _bitmap;
@@ -36,7 +42,6 @@ namespace UsbApp
         private bool _isTranslationUpdated = false;
         private byte[] _accumulatedBuffer = new byte[PacketSize];
         private int _accumulatedBufferIndex = 0;
-        private const int TotalLines = 105;
         private byte[][] _receivedPackets = new byte[TotalLines][];
         private bool[] _receivedPacketFlags = new bool[TotalLines];
         private Point? _clickedPoint = null;
@@ -44,6 +49,7 @@ namespace UsbApp
         private string _topRightCoordinate;
         private string _bottomLeftCoordinate;
         private string _bottomRightCoordinate;
+        private int _lastPsn = -1;
 
         public string TopLeftCoordinate
         {
@@ -98,6 +104,36 @@ namespace UsbApp
             CompositionTarget.Rendering += CompositionTarget_Rendering;
         } // MainWindow
 
+        private void ClearTextButton_Click(object sender, RoutedEventArgs e)
+        {
+            DataTextBox.Clear();
+        } // ClearTextButton_Click
+
+        private void SaveLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            SaveLog();
+        } // SaveLogButton_Click
+
+        private void SaveLog()
+        {
+            // Create a file dialog to save the log
+            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.FileName = "Log"; // Default file name
+            dlg.DefaultExt = ".log"; // Default file extension
+            dlg.Filter = "Log Files (*.log)|*.log|All Files (*.*)|*.*"; // Filter files by extension
+
+            // Show save file dialog box
+            bool? result = dlg.ShowDialog();
+
+            // Process save file dialog box results
+            if (result == true)
+            {
+                // Save the log
+                string filename = dlg.FileName;
+                File.WriteAllText(filename, DataTextBox.Text);
+            }
+        } // SaveLog
+
         private void UpdateCoordinateLabels()
         {
             TopLeftCoordinate = "( 0, 0 )";
@@ -149,9 +185,12 @@ namespace UsbApp
             if (_serialPort != null && _serialPort.IsOpen)
             {
                 // Close the serial port and update the button content
+                _serialPort.DiscardInBuffer(); // Clear the input buffer
+                _serialPort.DiscardOutBuffer(); // Clear the output buffer
                 _serialPort.Close();
                 ((Button)sender).Content = "Start Reading";
                 ResetData();
+                ClearBuffer(); // Clear the buffer when stopping reading
             }
             else
             {
@@ -172,6 +211,8 @@ namespace UsbApp
                 _serialPort.Handshake = Handshake.None; // Turn off XON/XOFF control
                 _serialPort.DataReceived += SerialPort_DataReceived;
                 _serialPort.Open();
+                _serialPort.DiscardInBuffer(); // Clear the input buffer
+                _serialPort.DiscardOutBuffer(); // Clear the output buffer
                 ((Button)sender).Content = "Stop Reading";
             }
         } // ReadDataButton_Click
@@ -228,48 +269,68 @@ namespace UsbApp
             byte[] buffer = new byte[bytesToRead];
             _serialPort.Read(buffer, 0, bytesToRead);
 
-            for (int i = 0; i < bytesToRead; i++)
-            {
-                byte currentByte = buffer[i];
+            // Copy the received data into the buffer
+            Array.Copy(buffer, 0, _buffer, _bufferIndex, bytesToRead);
+            _bufferIndex += bytesToRead;
 
-                // State machine to detect the start of the packet
-                switch (_accumulatedBufferIndex)
-                {
-                    case 0:
-                        if (currentByte == 0x55)
-                        {
-                            _accumulatedBuffer[_accumulatedBufferIndex++] = currentByte;
-                        }
-                        break;
-                    case 1:
-                        if (currentByte == 0xAA)
-                        {
-                            _accumulatedBuffer[_accumulatedBufferIndex++] = currentByte;
-                        }
-                        else
-                        {
-                            _accumulatedBufferIndex = 0; // Reset if the second byte is not 0xAA
-                        }
-                        break;
-                    default:
-                        _accumulatedBuffer[_accumulatedBufferIndex++] = currentByte;
-                        break;
-                }
-
-                // Check if we have a complete packet
-                if (_accumulatedBufferIndex >= PacketSize)
-                {
-                    byte[] completePacket = new byte[PacketSize];
-                    Array.Copy(_accumulatedBuffer, completePacket, PacketSize);
-
-                    // Reset the accumulated buffer index
-                    _accumulatedBufferIndex = 0;
-
-                    // Process the complete packet
-                    Dispatcher.Invoke(() => ParseMipiPacket(completePacket));
-                }
-            } // for
+            // Try to parse the buffer for valid packets
+            ParseBuffer();
         } // SerialPort_DataReceived
+
+        private void ParseBuffer()
+        {
+            int startIndex = 0;
+
+            while (startIndex <= _bufferIndex - PacketSize)
+            {
+                // Check for the start of a packet
+                if (_buffer[startIndex] == 0x55 && _buffer[startIndex + 1] == 0xAA)
+                {
+                    byte[] packet = new byte[PacketSize];
+                    Array.Copy(_buffer, startIndex, packet, 0, PacketSize);
+
+                    // Verify the packet size
+                    ushort packSize = (ushort)(packet[3] | (packet[4] << 8));
+                    if (packSize == PacketSize)
+                    {
+                        // Process the complete packet
+                        Dispatcher.Invoke(() => ParseMipiPacket(packet));
+
+                        // Move the start index to the next potential packet
+                        startIndex += PacketSize;
+                    }
+                    else
+                    {
+                        // Invalid packet size, move to the next byte
+                        startIndex++;
+                    }
+                }
+                else
+                {
+                    // Not the start of a packet, move to the next byte
+                    startIndex++;
+                }
+            }
+
+            // Print any data before the first valid header byte as a string
+            if (startIndex > 0)
+            {
+                string initialData = System.Text.Encoding.ASCII.GetString(_buffer, 0, startIndex);
+                //Dispatcher.Invoke(() => DataTextBox.AppendText($"{initialData}\n"));
+            } // if
+
+            // Print the remaining data after the last valid packet as a string
+            if (_bufferIndex > startIndex)
+            {
+                string remainingData = System.Text.Encoding.ASCII.GetString(_buffer, startIndex, _bufferIndex - startIndex);
+                //Dispatcher.Invoke(() => DataTextBox.AppendText($"{remainingData}\n"));
+            } // if
+
+            // Remove the processed data from the buffer
+            int remainingBytes = _bufferIndex - startIndex;
+            Array.Copy(_buffer, startIndex, _buffer, 0, remainingBytes);
+            _bufferIndex = remainingBytes;
+        } // ParseBuffer
 
         private void ParseMipiPacket(byte[] data)
         {
@@ -290,26 +351,19 @@ namespace UsbApp
             Array.Copy(data, 5, ambientData, 0, AmbientDataSize * 3);
             ushort checksum = (ushort)(data[5 + (AmbientDataSize * 3)] | (data[6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
 
+            bool hasInvalidData = false;
             // Print extracted data to the text box
-            DataTextBox.AppendText($"Header: 0x{header:X4}\n");
-            DataTextBox.AppendText($"PSN: 0x{psn:X2}\n");
-            DataTextBox.AppendText($"Packet Size: 0x{packSize:X4}\n");
-            DataTextBox.AppendText($"Checksum: 0x{checksum:X4}\n");
-            DataTextBox.AppendText($"---------------------------------------\n");
-
-            // Verify the header
-            if (header != 0xAA55)
-            {
-                // Print the device info
-                DataTextBox.AppendText($"Device Info: {BitConverter.ToString(data)}\n");
-                return;
-            }
+            DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+            DataTextBox.AppendText($"-------- Header: 0x{header:X4}\n");
+            DataTextBox.AppendText($"-------- PSN: 0x{psn:X2}\n");
+            DataTextBox.AppendText($"-------- Packet Size: 0x{packSize:X4}\n");
+            DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
 
             // Verify the packet size
             if (packSize != PacketSize)
             {
                 DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
-                return;
+                hasInvalidData = true;
             } // if
 
             // Calculate and verify the checksum
@@ -317,29 +371,30 @@ namespace UsbApp
             if (checksum != calculatedChecksum)
             {
                 DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
-                return;
+                hasInvalidData = true;
             } // if
 
-            // Ignore packets with psn 106~254
-            if (psn >= 105)
+            DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+
+            // Check if the PSN value decreases, indicating a new frame
+            if (_lastPsn != -1 && psn < _lastPsn)
             {
-                return;
+                ResetData();
             } // if
 
-            // Store the packet data
+            // Update the last received PSN value
+            _lastPsn = psn;
+
+            // Store the packet data regardless of checksum verification
             if (psn < TotalLines)
             {
                 _receivedPackets[psn] = ambientData;
                 _receivedPacketFlags[psn] = true;
-            }
+            } // if
 
-            // Check if we have received all packets
-            if (psn >= TotalLines - 1)
-            {
-                UpdateBitmap();
-                Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
-            }
+            UpdateBitmap();
         } // ParseMipiPacket
+
 
         private ushort CalculateChecksum(byte[] data, int length)
         {
@@ -541,21 +596,28 @@ namespace UsbApp
             // Ensure the coordinates are within the image bounds
             if (x >= 0 && x < TotalLines && y >= 0 && y < AmbientDataSize)
             {
-                // Calculate the index in the grayData array
-                int index = y * TotalLines + x;
+                // Calculate the index in the ambient data array
+                int packetIndex = x;
+                int dataIndex = y * 3;
 
-                // Retrieve the ambient data value
-                byte[] pixelData = new byte[4]; // Ensure the buffer is at least 4 bytes
-                Int32Rect rect = new Int32Rect(x, y, 1, 1);
-                _bitmap.CopyPixels(rect, pixelData, 4, 0); // Use a stride of 4
-                byte ambientDataValue = pixelData[0];
+                if (_receivedPacketFlags[packetIndex])
+                {
+                    byte r = _receivedPackets[packetIndex][dataIndex];
+                    byte g = _receivedPackets[packetIndex][dataIndex + 1];
+                    byte b = _receivedPackets[packetIndex][dataIndex + 2];
+                    byte ambientDataValue = (byte)((r + g + b) / 3);
 
-                // Display the coordinate and ambient data value
-                CoordinateDataTextBlock.Text = $"Coordinate: ({x}, {y}), Ambient Data Value: {ambientDataValue}";
+                    // Display the coordinate and ambient data value
+                    CoordinateDataTextBlock.Text = $"({x}, {y}): Ambient Data {ambientDataValue} ({r:X2} {g:X2} {b:X2})";
 
-                // Store the clicked point and redraw the axes
-                _clickedPoint = clickedPoint;
-                DrawAxes();
+                    // Store the clicked point and redraw the axes
+                    _clickedPoint = clickedPoint;
+                    DrawAxes();
+                }
+                else
+                {
+                    CoordinateDataTextBlock.Text = "No data available for the clicked point.";
+                }
             }
             else
             {
@@ -572,13 +634,46 @@ namespace UsbApp
                 double offsetX = currentPosition.X - _lastMousePosition.X;
                 double offsetY = currentPosition.Y - _lastMousePosition.Y;
 
-                _translateX += offsetX;
-                _translateY += offsetY;
+                // Calculate the new translation values
+                double newTranslateX = _translateX + offsetX;
+                double newTranslateY = _translateY + offsetY;
+
+                // Get the bounds of the ImageCanvas
+                double canvasWidth = ImageCanvas.ActualWidth;
+                double canvasHeight = ImageCanvas.ActualHeight;
+
+                // Get the bounds of the image
+                double imageWidth = _bitmap.PixelWidth * ImageScaleTransform.ScaleX;
+                double imageHeight = _bitmap.PixelHeight * ImageScaleTransform.ScaleY;
+
+                // Ensure the image stays within the bounds of the ImageCanvas
+                if (newTranslateX > 0)
+                {
+                    newTranslateX = 0;
+                }
+                else if (newTranslateX < canvasWidth - imageWidth)
+                {
+                    newTranslateX = canvasWidth - imageWidth;
+                }
+
+                if (newTranslateY > 0)
+                {
+                    newTranslateY = 0;
+                }
+                else if (newTranslateY < canvasHeight - imageHeight)
+                {
+                    newTranslateY = canvasHeight - imageHeight;
+                }
+
+                // Update the translation values
+                _translateX = newTranslateX;
+                _translateY = newTranslateY;
                 _isTranslationUpdated = true;
 
                 _lastMousePosition = currentPosition;
             }
-        }
+        } // ImageCanvas_MouseMove
+
 
         private void ImageCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
@@ -603,14 +698,20 @@ namespace UsbApp
                 _isTranslationUpdated = false;
             }
         }
-
+        private void ClearBuffer()
+        {
+            Array.Clear(_buffer, 0, _buffer.Length);
+            _bufferIndex = 0;
+        } // ClearBuffer
         private void ResetData()
         {
+            _lastPsn = -1; // Reset the last PSN value
             _currentLine = 0;
             _accumulatedBufferIndex = 0;
             Array.Clear(_accumulatedBuffer, 0, _accumulatedBuffer.Length);
             Array.Clear(_receivedPackets, 0, _receivedPackets.Length);
             Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
+            InitializeBitmap(); // Reinitialize the bitmap
         } // ResetData
     } // class MainWindow
 } // namespace UsbApp
