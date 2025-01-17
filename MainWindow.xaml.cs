@@ -9,9 +9,12 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading.Tasks;
 
 // Note :
-// color
 // image refresh rate
 // packSize 0x06C7 (1735 bytes)
 
@@ -20,127 +23,60 @@ namespace UsbApp
     public partial class MainWindow : Window
     {
         // data speed : 64 bytes per 0.01s (sleep(10000)) should be successfully received and displayed
-        private const int AmbientDataSize = 576; // Size of the ambient data
-        private const int PacketSize = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size (should be 1735)
-        private const int TotalLines = 105;
+        public const int AmbientDataSize = 1560; // Size of the ambient data
 
-        private const int BufferSize = PacketSize * TotalLines * 2; // Increase buffer size for potential board info
-        private byte[] _buffer = new byte[BufferSize];
-        private int _bufferIndex = 0;
+        // each udp packet has 1 byte udp_num, 4 udp packets form a vertical line on my bitmap.
+        public const int PacketSize = 4 + 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size (should be 4691)
 
-        private SerialPort _serialPort;
-        private WriteableBitmap _bitmap;
-        private int _currentLine = 0;
-        private byte[] _imageData;
-        private DispatcherTimer _timer;
-        private int _packetIndex = 0;
-        private Random _rand;
-        private Point _lastMousePosition;
-        private bool _isDragging;
-        private double _translateX = 0;
-        private double _translateY = 0;
-        private bool _isTranslationUpdated = false;
-        private byte[] _accumulatedBuffer = new byte[PacketSize];
-        private int _accumulatedBufferIndex = 0;
-        private byte[][] _receivedPackets = new byte[TotalLines][];
-        private bool[] _receivedPacketFlags = new bool[TotalLines];
-        private Point? _clickedPoint = null;
-        private string _topLeftCoordinate;
-        private string _topRightCoordinate;
-        private string _bottomLeftCoordinate;
-        private string _bottomRightCoordinate;
-        private int _lastPsn = -1;
+        public const int TotalLines = 105;
 
-        public string TopLeftCoordinate
-        {
-            get => _topLeftCoordinate;
-            set
-            {
-                _topLeftCoordinate = value;
-                OnPropertyChanged();
-            }
-        }
+        public const int BufferSize = PacketSize * TotalLines * 2; // Increase buffer size for potential board info
+        public byte[] _buffer = new byte[BufferSize];
+        public int _bufferIndex = 0;
 
-        public string TopRightCoordinate
-        {
-            get => _topRightCoordinate;
-            set
-            {
-                _topRightCoordinate = value;
-                OnPropertyChanged();
-            }
-        }
+        private UdpClient udpClient;
+        private bool isListening;
 
-        public string BottomLeftCoordinate
-        {
-            get => _bottomLeftCoordinate;
-            set
-            {
-                _bottomLeftCoordinate = value;
-                OnPropertyChanged();
-            }
-        }
+        public SerialPort _serialPort;
+        public WriteableBitmap _bitmap;
+        public int _currentLine = 0;
+        public byte[] _imageData;
+        public DispatcherTimer _timer;
+        public int _packetIndex = 0;
+        public Random _rand;
+        public Point clickPosition;
+        public byte[] _accumulatedBuffer = new byte[PacketSize];
+        public int _accumulatedBufferIndex = 0;
+        public byte[][] _receivedPackets = new byte[TotalLines][];
+        public bool[] _receivedPacketFlags = new bool[TotalLines];
+        public Point? _clickedPoint = null;
 
-        public string BottomRightCoordinate
-        {
-            get => _bottomRightCoordinate;
-            set
-            {
-                _bottomRightCoordinate = value;
-                OnPropertyChanged();
-            }
-        }
+        public int _lastPsn = -1;
+        public DebugWindow _debugWindow;
+        public int CanvasWidth => TotalLines;
+        public int CanvasHeight => AmbientDataSize;
 
         public MainWindow()
         {
             InitializeComponent();
             DataContext = this;
-            UpdateCoordinateLabels();
-            PopulateSerialPortComboBox();
+            // Populate the serial port combo box
+            // PopulateSerialPortComboBox();
             InitializeBitmap();
             InitializeTimer();
-            _rand = new Random(); // Initialize the random number generator
 
-            CompositionTarget.Rendering += CompositionTarget_Rendering;
+            _rand = new Random(); // Initialize the random number generator
+            ImageDimensionsTextBlock.Text = $"Image Dimensions: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}";
+
+            // Open the debug window
+            DebugWindow.Instance.Show();
         } // MainWindow
 
-        private void ClearTextButton_Click(object sender, RoutedEventArgs e)
+        private void MainWindow_Closed(object sender, System.EventArgs e)
         {
-            DataTextBox.Clear();
-        } // ClearTextButton_Click
-
-        private void SaveLogButton_Click(object sender, RoutedEventArgs e)
-        {
-            SaveLog();
-        } // SaveLogButton_Click
-
-        private void SaveLog()
-        {
-            // Create a file dialog to save the log
-            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
-            dlg.FileName = "Log"; // Default file name
-            dlg.DefaultExt = ".log"; // Default file extension
-            dlg.Filter = "Log Files (*.log)|*.log|All Files (*.*)|*.*"; // Filter files by extension
-
-            // Show save file dialog box
-            bool? result = dlg.ShowDialog();
-
-            // Process save file dialog box results
-            if (result == true)
-            {
-                // Save the log
-                string filename = dlg.FileName;
-                File.WriteAllText(filename, DataTextBox.Text);
-            }
-        } // SaveLog
-
-        private void UpdateCoordinateLabels()
-        {
-            TopLeftCoordinate = "( 0, 0 )";
-            TopRightCoordinate = $"( {TotalLines}, 0 )";
-            BottomLeftCoordinate = $"( 0, {AmbientDataSize} )";
-            BottomRightCoordinate = $"( {TotalLines}, {AmbientDataSize} )";
-        } // UpdateCoordinateLabels
+            StopListening();
+            Application.Current.Shutdown();
+        } // MainWindow_Closed
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -149,7 +85,7 @@ namespace UsbApp
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
         } // OnPropertyChanged
 
-        private void PopulateSerialPortComboBox()
+        public void PopulateSerialPortComboBox()
         {
             string[] ports = SerialPort.GetPortNames();
             foreach (string port in ports)
@@ -167,7 +103,7 @@ namespace UsbApp
             }
         }
 
-        private bool IsPortAvailable(string portName)
+        public bool IsPortAvailable(string portName)
         {
             string[] ports = SerialPort.GetPortNames();
             foreach (string port in ports)
@@ -180,7 +116,7 @@ namespace UsbApp
             return false;
         }
 
-        private void ReadDataButton_Click(object sender, RoutedEventArgs e)
+        public void ReadDataButton_Click(object sender, RoutedEventArgs e)
         {
             if (_serialPort != null && _serialPort.IsOpen)
             {
@@ -217,7 +153,7 @@ namespace UsbApp
             }
         } // ReadDataButton_Click
 
-        private void TestSimulationButton_Click(object sender, RoutedEventArgs e)
+        public void TestSimulationButton_Click(object sender, RoutedEventArgs e)
         {
             if (_timer.IsEnabled)
             {
@@ -233,12 +169,12 @@ namespace UsbApp
             }
         }
 
-        private void SaveImageButton_Click(object sender, RoutedEventArgs e)
+        public void SaveImageButton_Click(object sender, RoutedEventArgs e)
         {
             SaveImage();
-        }
+        } // SaveImageButton_Click
 
-        private void SaveImage()
+        public void SaveImage()
         {
             // Create a file dialog to save the image
             Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
@@ -263,7 +199,114 @@ namespace UsbApp
             }
         }
 
-        private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        private async void StartListeningButton_Click(object sender, RoutedEventArgs e)
+        {
+            Button button = (Button)sender;
+
+            if (isListening)
+            {
+                StopListening();
+                button.Content = "Start Listening";
+            }
+            else
+            {
+                isListening = true;
+                udpClient = new UdpClient(7000); // Use the appropriate port number
+                UdpDataTextBlock.Text = "Listening for UDP packets...";
+                button.Content = "Stop Listening";
+
+                await Task.Run(() => ListenForUdpPackets());
+            }
+        } // StartListeningButton_Click
+
+        private void StopListening()
+        {
+            if (udpClient != null)
+                udpClient.Close();
+            isListening = false;
+            UdpDataTextBlock.Text = "Stopped listening.";
+        } // StopListening
+
+        private async void ListenForUdpPackets()
+        {
+            try
+            {
+                while (isListening)
+                {
+                    var result = await udpClient.ReceiveAsync();
+                    byte[] receivedData = result.Buffer;
+                    ParseUdpPacket(receivedData);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Handle the case when the UDP client is closed
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"Error: {ex.Message}");
+            }
+        } // ListenForUdpPackets
+
+        private void ParseUdpPacket(byte[] data)
+        {
+            if (data.Length != 1200)
+            {
+                Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Invalid UDP packet size.");
+                return;
+            }
+
+            byte udpNumber = data[0]; // 0 ~ 3
+            ushort header = (ushort)(data[1] | (data[2] << 8)); // 2 bytes
+            byte psn = data[3]; // 0 ~ 104
+            ushort packSize = (ushort)(data[4] | (data[5] << 8)); // 2 bytes
+            byte[] ambientData = new byte[AmbientDataSize * 3 / 4]; // 1170 bytes
+            Array.Copy(data, 6, ambientData, 0, AmbientDataSize * 3 / 4);
+            ushort checksum = (ushort)(data[6 + (AmbientDataSize * 3 / 4)] | (data[7 + (AmbientDataSize * 3 / 4)] << 8)); // 2 bytes
+
+            // Verify the packet size
+            if (packSize != 1200)
+            {
+                Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Invalid packet size field.");
+                return;
+            }
+
+            // Calculate and verify the checksum
+            ushort calculatedChecksum = CalculateChecksum(data, data.Length - 2);
+            if (checksum != calculatedChecksum)
+            {
+                Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Checksum mismatch.");
+                return;
+            }
+
+            // Combine the data from 4 UDP packets
+            if (_receivedPackets[psn] == null)
+            {
+                _receivedPackets[psn] = new byte[AmbientDataSize * 3];
+            }
+
+            Array.Copy(ambientData, 0, _receivedPackets[psn], udpNumber * (AmbientDataSize * 3 / 4), AmbientDataSize * 3 / 4);
+            _receivedPacketFlags[psn] = true;
+
+            // Check if all 4 UDP packets for this PSN have been received
+            bool allPacketsReceived = true;
+            for (int i = 0; i < 4; i++)
+            {
+                if (_receivedPackets[psn][i * (AmbientDataSize * 3 / 4)] == 0)
+                {
+                    allPacketsReceived = false;
+                    break;
+                }
+            }
+
+            if (allPacketsReceived)
+            {
+                Dispatcher.Invoke(() => UpdateBitmap());
+            }
+        } // ParseUdpPacket
+
+
+        public void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             int bytesToRead = _serialPort.BytesToRead;
             byte[] buffer = new byte[bytesToRead];
@@ -277,7 +320,7 @@ namespace UsbApp
             ParseBuffer();
         } // SerialPort_DataReceived
 
-        private void ParseBuffer()
+        public void ParseBuffer()
         {
             int startIndex = 0;
 
@@ -332,37 +375,38 @@ namespace UsbApp
             _bufferIndex = remainingBytes;
         } // ParseBuffer
 
-        private void ParseMipiPacket(byte[] data)
+        public void ParseMipiPacket(byte[] data)
         {
             // Ensure the data length matches the expected packet size
             if (data.Length != PacketSize)
             {
-                DataTextBox.AppendText("Invalid packet size.\n");
+                DebugWindow.Instance.DataTextBox.AppendText("Invalid packet size.\n");
                 // print the data for debug
-                DataTextBox.AppendText($"Data: {BitConverter.ToString(data)}\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"Data: {BitConverter.ToString(data)}\n");
                 return;
             }
 
             // Extract fields from the data
-            ushort header = (ushort)(data[0] | (data[1] << 8)); // 2 bytes
-            byte psn = data[2]; // 1~254 for now, 0 ~ 104 in the future // 1 byte
-            ushort packSize = (ushort)(data[3] | (data[4] << 8)); // 2 bytes
-            byte[] ambientData = new byte[AmbientDataSize * 3]; // 1728 bytes
-            Array.Copy(data, 5, ambientData, 0, AmbientDataSize * 3);
-            ushort checksum = (ushort)(data[5 + (AmbientDataSize * 3)] | (data[6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
+            byte udp_number = data[0]; // 0 ~ 3 // 1 byte
+            ushort header = (ushort)(data[1] | (data[2] << 8)); // 2 bytes
+            byte psn = data[3]; // 0 ~ 104 // 1 byte
+            ushort packSize = (ushort)(data[4] | (data[5] << 8)); // 2 bytes
+            byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
+            Array.Copy(data, 6, ambientData, 0, AmbientDataSize * 3);
+            ushort checksum = (ushort)(data[6 + (AmbientDataSize * 3)] | (data[7 + (AmbientDataSize * 3)] << 8)); // 2 bytes
 
             bool hasInvalidData = false;
             // Print extracted data to the text box
-            DataTextBox.AppendText($"----------------------------------------------------------------------\n");
-            DataTextBox.AppendText($"-------- Header: 0x{header:X4}\n");
-            DataTextBox.AppendText($"-------- PSN: 0x{psn:X2}\n");
-            DataTextBox.AppendText($"-------- Packet Size: 0x{packSize:X4}\n");
-            DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
+            DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+            DebugWindow.Instance.DataTextBox.AppendText($"-------- Header: 0x{header:X4}\n");
+            DebugWindow.Instance.DataTextBox.AppendText($"-------- PSN: 0x{psn:X2}\n");
+            DebugWindow.Instance.DataTextBox.AppendText($"-------- Packet Size: 0x{packSize:X4}\n");
+            DebugWindow.Instance.DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
 
             // Verify the packet size
             if (packSize != PacketSize)
             {
-                DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
                 hasInvalidData = true;
             } // if
 
@@ -370,11 +414,11 @@ namespace UsbApp
             ushort calculatedChecksum = CalculateChecksum(data, data.Length - 2);
             if (checksum != calculatedChecksum)
             {
-                DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
                 hasInvalidData = true;
             } // if
 
-            DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+            DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
 
             // Check if the PSN value decreases, indicating a new frame
             if (_lastPsn != -1 && psn < _lastPsn)
@@ -395,10 +439,8 @@ namespace UsbApp
             UpdateBitmap();
         } // ParseMipiPacket
 
-
-        private ushort CalculateChecksum(byte[] data, int length)
+        public ushort CalculateChecksum(byte[] data, int length)
         {
-            return 0x44A0; // 0x44A0 is every packet's checksum for testing
             ushort checksum = 0;
             for (int i = 0; i < length; i++)
             {
@@ -407,20 +449,7 @@ namespace UsbApp
             return checksum;
         } // CalculateChecksum
 
-        private void VerifyBitmapDimensions()
-        {
-            int expectedWidth = TotalLines;
-            int expectedHeight = AmbientDataSize;
-
-            if (_bitmap.PixelWidth != expectedWidth || _bitmap.PixelHeight != expectedHeight)
-            {
-                MessageBox.Show($"Bitmap dimensions are incorrect. Expected: {expectedWidth}x{expectedHeight}, Actual: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}");
-            } // if
-
-            ImageDimensionsTextBlock.Text = $"Image Dimensions: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}";
-        } // VerifyBitmapDimensions
-
-        private DrawingVisual CreateAxesVisual()
+        public DrawingVisual CreateAxesVisual()
         {
             DrawingVisual visual = new DrawingVisual();
             using (DrawingContext context = visual.RenderOpen())
@@ -443,7 +472,7 @@ namespace UsbApp
             return visual;
         } // CreateAxesVisual
 
-        private void DrawAxes()
+        public void DrawAxes()
         {
             DrawingVisual axesVisual = CreateAxesVisual();
             RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
@@ -465,21 +494,49 @@ namespace UsbApp
         }
         // DrawAxes
 
-
-        private void InitializeBitmap()
+        private void ImagePanel_Loaded(object sender, RoutedEventArgs e)
+        {
+            ResizeBitmapToFitStackPanel();
+        }
+        public void InitializeBitmap()
         {
             _bitmap = new WriteableBitmap(TotalLines, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
             ImageCanvas.Background = new ImageBrush(_bitmap);
             _imageData = new byte[TotalLines * AmbientDataSize * 3];
-            VerifyBitmapDimensions();
             DrawAxes(); // Draw the axes on the image
         } // InitializeBitmap
 
-
-        private void UpdateBitmap()
+        public void ResizeBitmapToFitStackPanel()
         {
-            VerifyBitmapDimensions();
+            double panelHeight = ImagePanel.ActualHeight;
+            double panelWidth = ImagePanel.ActualWidth;
+            double imageHeight = _bitmap.PixelHeight;
+            double imageWidth = _bitmap.PixelWidth;
 
+            if (panelHeight > 0 && imageHeight > 0)
+            {
+                double scale = (panelHeight / imageHeight) * 0.95;
+                ImageScaleTransform.ScaleX = scale;
+                ImageScaleTransform.ScaleY = scale;
+
+                // Center the image horizontally and vertically
+                double scaledImageWidth = imageWidth * scale;
+                double scaledImageHeight = imageHeight * scale;
+                double offsetX = (panelWidth - scaledImageWidth)/2;
+                double offsetY = (panelHeight - scaledImageHeight) / 2;
+
+                ImageCanvas.RenderTransform = new TransformGroup
+                {
+                    Children = new TransformCollection {
+                        new ScaleTransform(scale, scale),
+                        new TranslateTransform(offsetX, offsetY)
+                    }
+                };
+            }
+        } // ResizeBitmapToFitStackPanel
+
+        public void UpdateBitmap()
+        {
             byte[] grayData = new byte[TotalLines * AmbientDataSize];
             for (int i = 0; i < TotalLines; i++)
             {
@@ -500,14 +557,14 @@ namespace UsbApp
         } // UpdateBitmap
 
 
-        private void InitializeTimer()
+        public void InitializeTimer()
         {
             _timer = new DispatcherTimer();
             _timer.Interval = TimeSpan.FromSeconds(1);
             _timer.Tick += Timer_Tick;
         }
 
-        private void Timer_Tick(object sender, EventArgs e)
+        public void Timer_Tick(object sender, EventArgs e)
         {
             // Update the random seed for each frame
             _rand = new Random();
@@ -521,7 +578,7 @@ namespace UsbApp
             }
         }
 
-        private enum Scenario
+        public enum Scenario
         {
             Valid,
             InvalidPacketSize,
@@ -529,7 +586,7 @@ namespace UsbApp
             RandomData
         }
 
-        private byte[] GenerateMockPacket(int psn, Scenario scenario)
+        public byte[] GenerateMockPacket(int psn, Scenario scenario)
         {
             byte[] packet = new byte[PacketSize];
 
@@ -580,130 +637,14 @@ namespace UsbApp
         {
             _serialPort?.Close();
             base.OnClosed(e);
-        }
+        } // OnClosed
 
-        private void ImageCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            _lastMousePosition = e.GetPosition(ImageCanvas);
-            _isDragging = true;
-            ImageCanvas.CaptureMouse();
-
-            // Retrieve the coordinate of the clicked point
-            Point clickedPoint = e.GetPosition(ImageCanvas);
-            int x = (int)clickedPoint.X;
-            int y = (int)clickedPoint.Y;
-
-            // Ensure the coordinates are within the image bounds
-            if (x >= 0 && x < TotalLines && y >= 0 && y < AmbientDataSize)
-            {
-                // Calculate the index in the ambient data array
-                int packetIndex = x;
-                int dataIndex = y * 3;
-
-                if (_receivedPacketFlags[packetIndex])
-                {
-                    byte r = _receivedPackets[packetIndex][dataIndex];
-                    byte g = _receivedPackets[packetIndex][dataIndex + 1];
-                    byte b = _receivedPackets[packetIndex][dataIndex + 2];
-                    byte ambientDataValue = (byte)((r + g + b) / 3);
-
-                    // Display the coordinate and ambient data value
-                    CoordinateDataTextBlock.Text = $"({x}, {y}): Ambient Data {ambientDataValue} ({r:X2} {g:X2} {b:X2})";
-
-                    // Store the clicked point and redraw the axes
-                    _clickedPoint = clickedPoint;
-                    DrawAxes();
-                }
-                else
-                {
-                    CoordinateDataTextBlock.Text = "No data available for the clicked point.";
-                }
-            }
-            else
-            {
-                CoordinateDataTextBlock.Text = "Clicked point is outside the image bounds.";
-            }
-        } // ImageCanvas_MouseLeftButtonDown
-
-
-        private void ImageCanvas_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (_isDragging)
-            {
-                Point currentPosition = e.GetPosition(ImageCanvas);
-                double offsetX = currentPosition.X - _lastMousePosition.X;
-                double offsetY = currentPosition.Y - _lastMousePosition.Y;
-
-                // Calculate the new translation values
-                double newTranslateX = _translateX + offsetX;
-                double newTranslateY = _translateY + offsetY;
-
-                // Get the bounds of the ImageCanvas
-                double canvasWidth = ImageCanvas.ActualWidth;
-                double canvasHeight = ImageCanvas.ActualHeight;
-
-                // Get the bounds of the image
-                double imageWidth = _bitmap.PixelWidth * ImageScaleTransform.ScaleX;
-                double imageHeight = _bitmap.PixelHeight * ImageScaleTransform.ScaleY;
-
-                // Ensure the image stays within the bounds of the ImageCanvas
-                if (newTranslateX > 0)
-                {
-                    newTranslateX = 0;
-                }
-                else if (newTranslateX < canvasWidth - imageWidth)
-                {
-                    newTranslateX = canvasWidth - imageWidth;
-                }
-
-                if (newTranslateY > 0)
-                {
-                    newTranslateY = 0;
-                }
-                else if (newTranslateY < canvasHeight - imageHeight)
-                {
-                    newTranslateY = canvasHeight - imageHeight;
-                }
-
-                // Update the translation values
-                _translateX = newTranslateX;
-                _translateY = newTranslateY;
-                _isTranslationUpdated = true;
-
-                _lastMousePosition = currentPosition;
-            }
-        } // ImageCanvas_MouseMove
-
-
-        private void ImageCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            _isDragging = false;
-            ImageCanvas.ReleaseMouseCapture();
-        }
-
-        private void ImageCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            double zoomLevel = ImageScaleTransform.ScaleX + (e.Delta > 0 ? 0.1 : -0.1);
-            zoomLevel = Math.Max(1, zoomLevel); // Ensure the zoom level is at least 1
-            ImageScaleTransform.ScaleX = zoomLevel;
-            ImageScaleTransform.ScaleY = zoomLevel;
-        }
-
-        private void CompositionTarget_Rendering(object sender, EventArgs e)
-        {
-            if (_isTranslationUpdated)
-            {
-                ImageTranslateTransform.X = _translateX;
-                ImageTranslateTransform.Y = _translateY;
-                _isTranslationUpdated = false;
-            }
-        }
-        private void ClearBuffer()
+        public void ClearBuffer()
         {
             Array.Clear(_buffer, 0, _buffer.Length);
             _bufferIndex = 0;
         } // ClearBuffer
-        private void ResetData()
+        public void ResetData()
         {
             _lastPsn = -1; // Reset the last PSN value
             _currentLine = 0;
