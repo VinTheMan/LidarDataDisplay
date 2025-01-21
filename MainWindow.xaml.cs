@@ -13,24 +13,24 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-
-// Note :
-// image refresh rate
-// packSize 0x06C7 (1735 bytes)
+using System.Windows.Documents;
+using System.Collections.Generic;
 
 namespace UsbApp
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, INotifyPropertyChanged
     {
         // data speed : 64 bytes per 0.01s (sleep(10000)) should be successfully received and displayed
         public const int AmbientDataSize = 1560; // Size of the ambient data
-
+        public const int UdpPacketSize = 1200; // Size of each UDP packet
         // each udp packet has 1 byte udp_num, 4 udp packets form a vertical line on my bitmap.
-        public const int PacketSize = 4 + 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total packet size (should be 4691)
+        public const int ValidDataSize = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total valid bytes (should be 4687 without udp numbers(1 byte per UDP packet so 4 bytes in total))
+        public const int ValidDataSize_uart = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total valid bytes coming from UART (should be 4687)
 
+        public const int TotalPacketSize = 4800; // 0x12C0 (4800 bytes)(4 UDP packet, each is 1200 bytes, but the valid data would be the first 4691 bytes.)
         public const int TotalLines = 105;
 
-        public const int BufferSize = PacketSize * TotalLines * 2; // Increase buffer size for potential board info
+        public const int BufferSize = TotalPacketSize * TotalLines * 2; // Increase buffer size for potential board info
         public byte[] _buffer = new byte[BufferSize];
         public int _bufferIndex = 0;
 
@@ -45,7 +45,7 @@ namespace UsbApp
         public int _packetIndex = 0;
         public Random _rand;
         public Point clickPosition;
-        public byte[] _accumulatedBuffer = new byte[PacketSize];
+        public byte[] _accumulatedBuffer = new byte[ValidDataSize];
         public int _accumulatedBufferIndex = 0;
         public byte[][] _receivedPackets = new byte[TotalLines][];
         public bool[] _receivedPacketFlags = new bool[TotalLines];
@@ -56,6 +56,20 @@ namespace UsbApp
         public int CanvasWidth => TotalLines;
         public int CanvasHeight => AmbientDataSize;
 
+        private bool _isCheckboxChecked;
+        public bool IsCheckboxChecked
+        {
+            get => _isCheckboxChecked;
+            set
+            {
+                if (_isCheckboxChecked != value)
+                {
+                    _isCheckboxChecked = value;
+                    OnPropertyChanged();
+                } // if
+            } // set
+        } // IsCheckboxChecked
+
         public MainWindow()
         {
             InitializeComponent();
@@ -63,13 +77,13 @@ namespace UsbApp
             // Populate the serial port combo box
             // PopulateSerialPortComboBox();
             InitializeBitmap();
-            InitializeTimer();
 
             _rand = new Random(); // Initialize the random number generator
             ImageDimensionsTextBlock.Text = $"Image Dimensions: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}";
 
             // Open the debug window
             DebugWindow.Instance.Show();
+            this.SizeChanged += MainWindow_SizeChanged;
         } // MainWindow
 
         private void MainWindow_Closed(object sender, System.EventArgs e)
@@ -77,6 +91,11 @@ namespace UsbApp
             StopListening();
             Application.Current.Shutdown();
         } // MainWindow_Closed
+
+        private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ResizeBitmapToFitDockPanel();
+        } // MainWindow_SizeChanged
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -152,22 +171,6 @@ namespace UsbApp
                 ((Button)sender).Content = "Stop Reading";
             }
         } // ReadDataButton_Click
-
-        public void TestSimulationButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_timer.IsEnabled)
-            {
-                // Stop the timer
-                _timer.Stop();
-                ((Button)sender).Content = "Start Simulation";
-            }
-            else
-            {
-                // Start the timer
-                _timer.Start();
-                ((Button)sender).Content = "Stop Simulation";
-            }
-        }
 
         public void SaveImageButton_Click(object sender, RoutedEventArgs e)
         {
@@ -248,63 +251,119 @@ namespace UsbApp
             }
         } // ListenForUdpPackets
 
+        private Dictionary<int, byte[][]> _receivedPacketsDict = new Dictionary<int, byte[][]>();
+        private Dictionary<int, int> _receivedPacketFlagsDict = new Dictionary<int, int>();
+        private readonly object _lock = new object();
+
         private void ParseUdpPacket(byte[] data)
         {
-            if (data.Length != 1200)
+            if (data.Length != UdpPacketSize)
             {
                 Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Invalid UDP packet size.");
                 return;
             }
 
-            byte udpNumber = data[0]; // 0 ~ 3
-            ushort header = (ushort)(data[1] | (data[2] << 8)); // 2 bytes
-            byte psn = data[3]; // 0 ~ 104
-            ushort packSize = (ushort)(data[4] | (data[5] << 8)); // 2 bytes
-            byte[] ambientData = new byte[AmbientDataSize * 3 / 4]; // 1170 bytes
-            Array.Copy(data, 6, ambientData, 0, AmbientDataSize * 3 / 4);
-            ushort checksum = (ushort)(data[6 + (AmbientDataSize * 3 / 4)] | (data[7 + (AmbientDataSize * 3 / 4)] << 8)); // 2 bytes
+            byte udpNumber = data[0]; // 0 ~ 3 // 1 byte
+            int psn = data[2]; // 0 ~ 104 // 1 byte
 
-            // Verify the packet size
-            if (packSize != 1200)
+            lock (_lock)
             {
-                Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Invalid packet size field.");
-                return;
-            }
-
-            // Calculate and verify the checksum
-            ushort calculatedChecksum = CalculateChecksum(data, data.Length - 2);
-            if (checksum != calculatedChecksum)
-            {
-                Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Checksum mismatch.");
-                return;
-            }
-
-            // Combine the data from 4 UDP packets
-            if (_receivedPackets[psn] == null)
-            {
-                _receivedPackets[psn] = new byte[AmbientDataSize * 3];
-            }
-
-            Array.Copy(ambientData, 0, _receivedPackets[psn], udpNumber * (AmbientDataSize * 3 / 4), AmbientDataSize * 3 / 4);
-            _receivedPacketFlags[psn] = true;
-
-            // Check if all 4 UDP packets for this PSN have been received
-            bool allPacketsReceived = true;
-            for (int i = 0; i < 4; i++)
-            {
-                if (_receivedPackets[psn][i * (AmbientDataSize * 3 / 4)] == 0)
+                // Initialize the storage for the packets if not already done
+                if (!_receivedPacketsDict.ContainsKey(psn))
                 {
-                    allPacketsReceived = false;
-                    break;
+                    _receivedPacketsDict[psn] = new byte[4][];
+                    _receivedPacketFlagsDict[psn] = 0;
                 }
-            }
 
-            if (allPacketsReceived)
-            {
-                Dispatcher.Invoke(() => UpdateBitmap());
+                // Store the received packet
+                _receivedPacketsDict[psn][udpNumber] = new byte[UdpPacketSize - 1];
+                Array.Copy(data, 1, _receivedPacketsDict[psn][udpNumber], 0, UdpPacketSize - 1);
+                _receivedPacketFlagsDict[psn] |= (1 << udpNumber);
+
+                // Check if all 4 UDP packets for this PSN have been received
+                if (_receivedPacketFlagsDict[psn] == 0x0F)
+                {
+                    // All packets received for this PSN, now check if we have all PSNs for the frame
+                    bool allPacketsReceived = true;
+                    for (int i = 0; i < TotalLines; i++)
+                    {
+                        if (!_receivedPacketFlagsDict.ContainsKey(i) || _receivedPacketFlagsDict[i] != 0x0F)
+                        {
+                            allPacketsReceived = false;
+                            break;
+                        }
+                    }
+
+                    if (allPacketsReceived)
+                    {
+                        // Process the complete frame
+                        byte[] combinedData = new byte[ValidDataSize * TotalLines];
+                        for (int i = 0; i < TotalLines; i++)
+                        {
+                            for (int j = 0; j < 4; j++)
+                            {
+                                Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, i * ValidDataSize + 1 + j * (UdpPacketSize - 1), UdpPacketSize - 1);
+                            }
+                        }
+
+                        // Parse the combined data
+                        Task.Run(() => ParseCombinedData(combinedData));
+
+                        // Clear the flags and buffer for the next frame
+                        _receivedPacketFlagsDict.Clear();
+                        _receivedPacketsDict.Clear();
+                    }
+                }
             }
         } // ParseUdpPacket
 
+        private void ParseCombinedData(byte[] combinedData)
+        {
+            for (int i = 0; i < TotalLines; i++)
+            {
+                int offset = i * ValidDataSize;
+                ushort header = (ushort)(combinedData[offset] | (combinedData[offset + 1] << 8)); // 2 bytes
+                byte psn = combinedData[offset + 2]; // 0 ~ 104 // 1 byte
+                ushort packSize = (ushort)(combinedData[offset + 3] | (combinedData[offset + 4] << 8)); // 2 bytes
+                byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
+                Array.Copy(combinedData, offset + 5, ambientData, 0, AmbientDataSize * 3);
+                ushort checksum = (ushort)(combinedData[offset + 5 + (AmbientDataSize * 3)] | (combinedData[offset + 6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
+
+                bool hasInvalidData = false;
+                // Print extracted data to the text box
+                DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"-------- Header: 0x{header:X4}\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"-------- PSN: 0x{psn:X2}\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"-------- Packet Size: 0x{packSize:X4}\n");
+                DebugWindow.Instance.DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
+
+                // Verify the packet size
+                if (packSize != ValidDataSize)
+                {
+                    DebugWindow.Instance.DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
+                    hasInvalidData = true;
+                }
+
+                // Calculate and verify the checksum
+                ushort calculatedChecksum = CalculateChecksum(combinedData, offset, ValidDataSize - 2);
+                if (checksum != calculatedChecksum)
+                {
+                    DebugWindow.Instance.DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
+                    hasInvalidData = true;
+                }
+
+                DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+
+                // Store the packet data
+                if (psn < TotalLines)
+                {
+                    _receivedPackets[psn] = ambientData;
+                    _receivedPacketFlags[psn] = true;
+                }
+            }
+
+            Dispatcher.Invoke(() => UpdateBitmap());
+        } // ParseCombinedData
 
         public void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
@@ -324,23 +383,23 @@ namespace UsbApp
         {
             int startIndex = 0;
 
-            while (startIndex <= _bufferIndex - PacketSize)
+            while (startIndex <= _bufferIndex - ValidDataSize_uart)
             {
                 // Check for the start of a packet
                 if (_buffer[startIndex] == 0x55 && _buffer[startIndex + 1] == 0xAA)
                 {
-                    byte[] packet = new byte[PacketSize];
-                    Array.Copy(_buffer, startIndex, packet, 0, PacketSize);
+                    byte[] packet = new byte[ValidDataSize_uart];
+                    Array.Copy(_buffer, startIndex, packet, 0, ValidDataSize_uart);
 
                     // Verify the packet size
                     ushort packSize = (ushort)(packet[3] | (packet[4] << 8));
-                    if (packSize == PacketSize)
+                    if (packSize == ValidDataSize_uart)
                     {
                         // Process the complete packet
-                        Dispatcher.Invoke(() => ParseMipiPacket(packet));
+                        Dispatcher.Invoke(() => ParseMipiPacket(packet, false));
 
                         // Move the start index to the next potential packet
-                        startIndex += PacketSize;
+                        startIndex += ValidDataSize_uart;
                     }
                     else
                     {
@@ -375,10 +434,12 @@ namespace UsbApp
             _bufferIndex = remainingBytes;
         } // ParseBuffer
 
-        public void ParseMipiPacket(byte[] data)
+        public void ParseMipiPacket(byte[] data, bool isUdp = false)
         {
+            int validDataSize = isUdp ? ValidDataSize : ValidDataSize_uart;
+
             // Ensure the data length matches the expected packet size
-            if (data.Length != PacketSize)
+            if (data.Length != validDataSize)
             {
                 DebugWindow.Instance.DataTextBox.AppendText("Invalid packet size.\n");
                 // print the data for debug
@@ -387,13 +448,13 @@ namespace UsbApp
             }
 
             // Extract fields from the data
-            byte udp_number = data[0]; // 0 ~ 3 // 1 byte
-            ushort header = (ushort)(data[1] | (data[2] << 8)); // 2 bytes
-            byte psn = data[3]; // 0 ~ 104 // 1 byte
-            ushort packSize = (ushort)(data[4] | (data[5] << 8)); // 2 bytes
+            int offset = isUdp ? 1 : 0; // Offset for UDP packets to skip udp_number
+            ushort header = (ushort)(data[offset] | (data[offset + 1] << 8)); // 2 bytes
+            byte psn = data[offset + 2]; // 0 ~ 104 // 1 byte
+            ushort packSize = (ushort)(data[offset + 3] | (data[offset + 4] << 8)); // 2 bytes
             byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
-            Array.Copy(data, 6, ambientData, 0, AmbientDataSize * 3);
-            ushort checksum = (ushort)(data[6 + (AmbientDataSize * 3)] | (data[7 + (AmbientDataSize * 3)] << 8)); // 2 bytes
+            Array.Copy(data, offset + 5, ambientData, 0, AmbientDataSize * 3);
+            ushort checksum = (ushort)(data[offset + 5 + (AmbientDataSize * 3)] | (data[offset + 6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
 
             bool hasInvalidData = false;
             // Print extracted data to the text box
@@ -404,7 +465,7 @@ namespace UsbApp
             DebugWindow.Instance.DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
 
             // Verify the packet size
-            if (packSize != PacketSize)
+            if (packSize != validDataSize)
             {
                 DebugWindow.Instance.DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
                 hasInvalidData = true;
@@ -449,6 +510,16 @@ namespace UsbApp
             return checksum;
         } // CalculateChecksum
 
+        private ushort CalculateChecksum(byte[] data, int offset, int length)
+        {
+            ushort checksum = 0;
+            for (int i = offset; i < offset + length; i++)
+            {
+                checksum += data[i];
+            }
+            return checksum;
+        } // CalculateChecksum
+
         public DrawingVisual CreateAxesVisual()
         {
             DrawingVisual visual = new DrawingVisual();
@@ -474,30 +545,32 @@ namespace UsbApp
 
         public void DrawAxes()
         {
-            DrawingVisual axesVisual = CreateAxesVisual();
-            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-            renderBitmap.Render(axesVisual);
-
-            // Combine the axes with the existing bitmap
-            DrawingVisual combinedVisual = new DrawingVisual();
-            using (DrawingContext context = combinedVisual.RenderOpen())
+            if (IsCheckboxChecked)
             {
-                context.DrawImage(_bitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
-                context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+                DrawingVisual axesVisual = CreateAxesVisual();
+                RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+                renderBitmap.Render(axesVisual);
+
+                // Combine the axes with the existing bitmap
+                DrawingVisual combinedVisual = new DrawingVisual();
+                using (DrawingContext context = combinedVisual.RenderOpen())
+                {
+                    context.DrawImage(_bitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+                    context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+                }
+
+                RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+                combinedBitmap.Render(combinedVisual);
+
+                // Update the ImageCanvas with the combined image
+                ImageCanvas.Background = new ImageBrush(combinedBitmap);
             }
-
-            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-            combinedBitmap.Render(combinedVisual);
-
-            // Update the ImageCanvas with the combined image
-            ImageCanvas.Background = new ImageBrush(combinedBitmap);
-        }
-        // DrawAxes
+        } // DrawAxes
 
         private void ImagePanel_Loaded(object sender, RoutedEventArgs e)
         {
-            ResizeBitmapToFitStackPanel();
-        }
+            ResizeBitmapToFitDockPanel();
+        } // ImagePanel_Loaded
         public void InitializeBitmap()
         {
             _bitmap = new WriteableBitmap(TotalLines, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
@@ -506,8 +579,9 @@ namespace UsbApp
             DrawAxes(); // Draw the axes on the image
         } // InitializeBitmap
 
-        public void ResizeBitmapToFitStackPanel()
+        public void ResizeBitmapToFitDockPanel()
         {
+            //return;
             double panelHeight = ImagePanel.ActualHeight;
             double panelWidth = ImagePanel.ActualWidth;
             double imageHeight = _bitmap.PixelHeight;
@@ -519,21 +593,21 @@ namespace UsbApp
                 ImageScaleTransform.ScaleX = scale;
                 ImageScaleTransform.ScaleY = scale;
 
-                // Center the image horizontally and vertically
                 double scaledImageWidth = imageWidth * scale;
                 double scaledImageHeight = imageHeight * scale;
-                double offsetX = (panelWidth - scaledImageWidth)/2;
+                double offsetX = (imageWidth - scaledImageWidth) / 2;
                 double offsetY = (panelHeight - scaledImageHeight) / 2;
 
                 ImageCanvas.RenderTransform = new TransformGroup
                 {
-                    Children = new TransformCollection {
+                    Children = new TransformCollection
+                    {
                         new ScaleTransform(scale, scale),
                         new TranslateTransform(offsetX, offsetY)
-                    }
+                    } // Children
                 };
-            }
-        } // ResizeBitmapToFitStackPanel
+            } // if
+        } // ResizeBitmapToFitDockPanel
 
         public void UpdateBitmap()
         {
@@ -555,83 +629,6 @@ namespace UsbApp
             _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
             DrawAxes(); // Redraw the axes after updating the bitmap
         } // UpdateBitmap
-
-
-        public void InitializeTimer()
-        {
-            _timer = new DispatcherTimer();
-            _timer.Interval = TimeSpan.FromSeconds(1);
-            _timer.Tick += Timer_Tick;
-        }
-
-        public void Timer_Tick(object sender, EventArgs e)
-        {
-            // Update the random seed for each frame
-            _rand = new Random();
-
-            // Simulate 105 packets per second
-            for (int i = 0; i < 105; i++)
-            {
-                byte[] packet = GenerateMockPacket(_packetIndex, Scenario.Valid);
-                Dispatcher.Invoke(() => ParseMipiPacket(packet));
-                _packetIndex = (_packetIndex + 1) % 105;
-            }
-        }
-
-        public enum Scenario
-        {
-            Valid,
-            InvalidPacketSize,
-            ChecksumMismatch,
-            RandomData
-        }
-
-        public byte[] GenerateMockPacket(int psn, Scenario scenario)
-        {
-            byte[] packet = new byte[PacketSize];
-
-            // Header
-            packet[0] = 0x55;
-            packet[1] = 0xAA;
-
-            // PSN
-            packet[2] = (byte)psn;
-
-            // PackSize
-            packet[3] = 0xC7;
-            packet[4] = 0x06;
-
-            // AmbientData
-            for (int i = 5; i < 5 + (AmbientDataSize * 3); i++)
-            {
-                packet[i] = (byte)_rand.Next(256);
-            }
-
-            // Modify packet based on scenario
-            switch (scenario)
-            {
-                case Scenario.InvalidPacketSize:
-                    packet[3] = 0x00; // Invalid packet size
-                    packet[4] = 0x00;
-                    break;
-                case Scenario.ChecksumMismatch:
-                    // Do not calculate checksum correctly
-                    packet[PacketSize - 2] = 0x00;
-                    packet[PacketSize - 1] = 0x00;
-                    return packet;
-                case Scenario.RandomData:
-                    // Randomize entire packet
-                    _rand.NextBytes(packet);
-                    return packet;
-            }
-
-            // Checksum
-            ushort checksum = CalculateChecksum(packet, PacketSize - 2);
-            packet[PacketSize - 2] = (byte)(checksum & 0xFF);
-            packet[PacketSize - 1] = (byte)((checksum >> 8) & 0xFF);
-
-            return packet;
-        }
 
         protected override void OnClosed(EventArgs e)
         {

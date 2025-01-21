@@ -108,14 +108,14 @@ namespace UsbApp
         private enum Scenario
         {
             Valid,
-            InvalidPacketSize,
+            InvalidValidDataSize,
             ChecksumMismatch,
             RandomData
         }
 
         private byte[] GenerateMockPacket(int psn, Scenario scenario)
         {
-            byte[] packet = new byte[MainWindow.PacketSize];
+            byte[] packet = new byte[MainWindow.ValidDataSize_uart];
 
             // Header
             packet[0] = 0x55;
@@ -137,14 +137,14 @@ namespace UsbApp
             // Modify packet based on scenario
             switch (scenario)
             {
-                case Scenario.InvalidPacketSize:
+                case Scenario.InvalidValidDataSize:
                     packet[3] = 0x00; // Invalid packet size
                     packet[4] = 0x00;
                     break;
                 case Scenario.ChecksumMismatch:
                     // Do not calculate checksum correctly
-                    packet[MainWindow.PacketSize - 2] = 0x00;
-                    packet[MainWindow.PacketSize - 1] = 0x00;
+                    packet[MainWindow.ValidDataSize_uart - 2] = 0x00;
+                    packet[MainWindow.ValidDataSize_uart - 1] = 0x00;
                     return packet;
                 case Scenario.RandomData:
                     // Randomize entire packet
@@ -153,9 +153,9 @@ namespace UsbApp
             }
 
             // Checksum
-            ushort checksum = ((MainWindow)Application.Current.MainWindow).CalculateChecksum(packet, MainWindow.PacketSize - 2);
-            packet[MainWindow.PacketSize - 2] = (byte)(checksum & 0xFF);
-            packet[MainWindow.PacketSize - 1] = (byte)((checksum >> 8) & 0xFF);
+            ushort checksum = ((MainWindow)Application.Current.MainWindow).CalculateChecksum(packet, MainWindow.ValidDataSize_uart - 2);
+            packet[MainWindow.ValidDataSize_uart - 2] = (byte)(checksum & 0xFF);
+            packet[MainWindow.ValidDataSize_uart - 1] = (byte)((checksum >> 8) & 0xFF);
 
             return packet;
         }

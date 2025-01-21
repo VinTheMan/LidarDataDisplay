@@ -21,6 +21,7 @@
                         <ComboBox x:Name="SerialPortComboBox" HorizontalAlignment="Left" VerticalAlignment="Top" Width="200" Background="#555555" Foreground="#FFFFFF"/>
                         <Button Content="Read Data" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Click="ReadDataButton_Click" Background="#555555" Foreground="#FFFFFF"/>
                     </Grid>
+                    <CheckBox x:Name="IsCheckboxCheckedCheckBox" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
                     <!-- TextBlock to display image dimensions -->
                     <TextBlock x:Name="ImageDimensionsTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
                     <Grid Margin="30,10,0,0">
@@ -38,13 +39,13 @@
                 <StackPanel Height="675" VerticalAlignment="Top" Margin="0" Background="#333333">
                     <TextBlock Text="UDP Packet Handling" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
                     <Button Content="Start Listening" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
+                    <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
                     <TextBlock x:Name="UdpDataTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
                 </StackPanel>
             </TabItem>
         </TabControl>
         <DockPanel x:Name="ImagePanel" Grid.Column="1" Margin="0,0,0,0" Background="Gray" Loaded="ImagePanel_Loaded">
-            <TextBlock HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0" Foreground="#FFFFFF"/>
-            <Canvas x:Name="ImageCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" Background="Black"
+            <Canvas x:Name="ImageCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" HorizontalAlignment="Center" Background="Black"
                     >
                 <Canvas.RenderTransform>
                     <TransformGroup>
