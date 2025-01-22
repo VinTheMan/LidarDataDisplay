@@ -716,12 +716,6 @@ namespace UsbApp
                     segmentHeight = topBottomSegmentHeight;
                 }
 
-                if (segment == 2)
-                {
-                    // For the bottom segment, adjust the end Y value
-                    endY = AmbientDataSize;
-                }
-
                 double sumX = 0;
                 double sumY = 0;
                 double sumValue = 0;
@@ -740,7 +734,7 @@ namespace UsbApp
                             {
                                 value = 1; // Avoid division by zero
                             } // if
-                            // Adjust x and y to have (0,0) at the center of the segment
+                              // Adjust x and y to have (0,0) at the center of the segment
                             double adjustedX = x - (TotalLines / 2.0);
                             double adjustedY = y - (startY + segmentHeight / 2.0);
 
@@ -767,9 +761,18 @@ namespace UsbApp
                 DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
             }
 
+            // Format the centroid positions for display
+            string centroidPositions = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})\n" +
+                                       $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})\n" +
+                                       $"Centroid C ({centroids[2].X:F2}, {centroids[2].Y:F2})";
+
+            // Update the CoordinateDataTextBlock with the formatted text
+            Dispatcher.Invoke(() => CoordinateDataTextBlock.Text = centroidPositions);
+
             // Draw the centroids and segment boundaries on the bitmap using original coordinates
             DrawCentroidsAndSegments(originalCentroids);
         } // CalculateCentroids
+
 
         public void DrawCentroidsAndSegments(List<Point> centroids)
         {
