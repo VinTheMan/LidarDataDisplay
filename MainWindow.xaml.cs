@@ -20,7 +20,7 @@ namespace UsbApp
 {
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
-        // data speed : 64 bytes per 0.01s (sleep(10000)) should be successfully received and displayed
+        // UART data speed : 64 bytes per 0.01s (sleep(10000)) should be successfully received and displayed
         public const int AmbientDataSize = 1560; // Size of the ambient data
         public const int UdpPacketSize = 1200; // Size of each UDP packet
         // each udp packet has 1 byte udp_num, 4 udp packets form a vertical line on my bitmap.
@@ -43,7 +43,7 @@ namespace UsbApp
         public byte[] _imageData;
         public DispatcherTimer _timer;
         public int _packetIndex = 0;
-        public Random _rand;
+
         public Point clickPosition;
         public byte[] _accumulatedBuffer = new byte[ValidDataSize];
         public int _accumulatedBufferIndex = 0;
@@ -77,8 +77,6 @@ namespace UsbApp
             // Populate the serial port combo box
             // PopulateSerialPortComboBox();
             InitializeBitmap();
-
-            _rand = new Random(); // Initialize the random number generator
             ImageDimensionsTextBlock.Text = $"Image Dimensions: {_bitmap.PixelWidth}x{_bitmap.PixelHeight}";
 
             // Open the debug window
@@ -255,7 +253,7 @@ namespace UsbApp
         private Dictionary<int, int> _receivedPacketFlagsDict = new Dictionary<int, int>();
         private readonly object _lock = new object();
 
-        private void ParseUdpPacket(byte[] data)
+        public void ParseUdpPacket(byte[] data)
         {
             if (data.Length != UdpPacketSize)
             {
@@ -268,16 +266,44 @@ namespace UsbApp
 
             lock (_lock)
             {
+                // Check if the packet with the same udpNumber and psn has already been received
+                if (_receivedPacketsDict.ContainsKey(psn) && (_receivedPacketFlagsDict[psn] & (1 << udpNumber)) != 0)
+                {
+                    // Parse the combined data and update the bitmap with available lines
+                    byte[] combinedData = new byte[ValidDataSize * TotalLines];
+                    for (int i = 0; i < TotalLines; i++)
+                    {
+                        if (_receivedPacketFlagsDict.ContainsKey(i))
+                        {
+                            for (int j = 0; j < 4; j++)
+                            {
+                                if (_receivedPacketsDict[i][j] != null)
+                                {
+                                    Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, i * ValidDataSize + 1 + j * (UdpPacketSize - 2), UdpPacketSize - 2);
+                                } // if
+                            } // if
+                        } // if
+                    } // for
+
+                    Task.Run(() => ParseCombinedData(combinedData));
+                    Dispatcher.Invoke(() => UpdateBitmap());
+
+                    // Clear the dictionaries for the next frame
+                    _receivedPacketFlagsDict.Clear();
+                    _receivedPacketsDict.Clear();
+                    ResetData();
+                } // if
+
                 // Initialize the storage for the packets if not already done
                 if (!_receivedPacketsDict.ContainsKey(psn))
                 {
                     _receivedPacketsDict[psn] = new byte[4][];
                     _receivedPacketFlagsDict[psn] = 0;
-                }
+                } // if
 
                 // Store the received packet
-                _receivedPacketsDict[psn][udpNumber] = new byte[UdpPacketSize - 1];
-                Array.Copy(data, 1, _receivedPacketsDict[psn][udpNumber], 0, UdpPacketSize - 1);
+                _receivedPacketsDict[psn][udpNumber] = new byte[UdpPacketSize - 2];
+                Array.Copy(data, 2, _receivedPacketsDict[psn][udpNumber], 0, UdpPacketSize - 2);
                 _receivedPacketFlagsDict[psn] |= (1 << udpNumber);
 
                 // Check if all 4 UDP packets for this PSN have been received
@@ -291,8 +317,8 @@ namespace UsbApp
                         {
                             allPacketsReceived = false;
                             break;
-                        }
-                    }
+                        } // if
+                    } // for
 
                     if (allPacketsReceived)
                     {
@@ -302,9 +328,9 @@ namespace UsbApp
                         {
                             for (int j = 0; j < 4; j++)
                             {
-                                Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, i * ValidDataSize + 1 + j * (UdpPacketSize - 1), UdpPacketSize - 1);
-                            }
-                        }
+                                Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, i * ValidDataSize + 1 + j * (UdpPacketSize - 2), UdpPacketSize - 2);
+                            } // for
+                        } // for
 
                         // Parse the combined data
                         Task.Run(() => ParseCombinedData(combinedData));
@@ -312,9 +338,10 @@ namespace UsbApp
                         // Clear the flags and buffer for the next frame
                         _receivedPacketFlagsDict.Clear();
                         _receivedPacketsDict.Clear();
-                    }
-                }
-            }
+                        ResetData();
+                    } // if
+                } // if
+            } // lock
         } // ParseUdpPacket
 
         private void ParseCombinedData(byte[] combinedData)
@@ -331,28 +358,31 @@ namespace UsbApp
 
                 bool hasInvalidData = false;
                 // Print extracted data to the text box
-                DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
-                DebugWindow.Instance.DataTextBox.AppendText($"-------- Header: 0x{header:X4}\n");
-                DebugWindow.Instance.DataTextBox.AppendText($"-------- PSN: 0x{psn:X2}\n");
-                DebugWindow.Instance.DataTextBox.AppendText($"-------- Packet Size: 0x{packSize:X4}\n");
-                DebugWindow.Instance.DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
-
-                // Verify the packet size
-                if (packSize != ValidDataSize)
+                Dispatcher.Invoke(() =>
                 {
-                    DebugWindow.Instance.DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
-                    hasInvalidData = true;
-                }
+                    DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+                    DebugWindow.Instance.DataTextBox.AppendText($"-------- Header: 0x{header:X4}\n");
+                    DebugWindow.Instance.DataTextBox.AppendText($"-------- PSN: 0x{psn:X2}\n");
+                    DebugWindow.Instance.DataTextBox.AppendText($"-------- Packet Size: 0x{packSize:X4}\n");
+                    DebugWindow.Instance.DataTextBox.AppendText($"-------- Checksum: 0x{checksum:X4}\n");
 
-                // Calculate and verify the checksum
-                ushort calculatedChecksum = CalculateChecksum(combinedData, offset, ValidDataSize - 2);
-                if (checksum != calculatedChecksum)
-                {
-                    DebugWindow.Instance.DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
-                    hasInvalidData = true;
-                }
+                    // Verify the packet size
+                    if (packSize != ValidDataSize)
+                    {
+                        DebugWindow.Instance.DataTextBox.AppendText($"Invalid packet size field: 0x{packSize:X4}\n");
+                        hasInvalidData = true;
+                    }
 
-                DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+                    // Calculate and verify the checksum
+                    ushort calculatedChecksum = CalculateChecksum(combinedData, offset, ValidDataSize - 2);
+                    if (checksum != calculatedChecksum)
+                    {
+                        DebugWindow.Instance.DataTextBox.AppendText($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}\n");
+                        hasInvalidData = true;
+                    }
+
+                    DebugWindow.Instance.DataTextBox.AppendText($"----------------------------------------------------------------------\n");
+                });
 
                 // Store the packet data
                 if (psn < TotalLines)
@@ -502,6 +532,7 @@ namespace UsbApp
 
         public ushort CalculateChecksum(byte[] data, int length)
         {
+            return 0x1234; // for now
             ushort checksum = 0;
             for (int i = 0; i < length; i++)
             {
@@ -512,6 +543,7 @@ namespace UsbApp
 
         private ushort CalculateChecksum(byte[] data, int offset, int length)
         {
+            return 0x1234; // for now
             ushort checksum = 0;
             for (int i = offset; i < offset + length; i++)
             {
@@ -576,7 +608,7 @@ namespace UsbApp
             _bitmap = new WriteableBitmap(TotalLines, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
             ImageCanvas.Background = new ImageBrush(_bitmap);
             _imageData = new byte[TotalLines * AmbientDataSize * 3];
-            DrawAxes(); // Draw the axes on the image
+            //DrawAxes(); // Draw the axes on the image
         } // InitializeBitmap
 
         public void ResizeBitmapToFitDockPanel()
@@ -627,7 +659,8 @@ namespace UsbApp
             }
 
             _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
-            DrawAxes(); // Redraw the axes after updating the bitmap
+            //DrawAxes(); // Redraw the axes after updating the bitmap
+            CalculateCentroids();
         } // UpdateBitmap
 
         protected override void OnClosed(EventArgs e)
@@ -649,7 +682,139 @@ namespace UsbApp
             Array.Clear(_accumulatedBuffer, 0, _accumulatedBuffer.Length);
             Array.Clear(_receivedPackets, 0, _receivedPackets.Length);
             Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
-            InitializeBitmap(); // Reinitialize the bitmap
+            // InitializeBitmap(); // Reinitialize the bitmap
         } // ResetData
+
+
+        // --------------------------- Calculation of the Centroids ---------------------------
+        public void CalculateCentroids()
+        {
+            int topBottomSegmentHeight = 313;
+            int middleSegmentHeight = 315;
+            int dontCareHeight = (AmbientDataSize - (2 * topBottomSegmentHeight + middleSegmentHeight)) / 2; // Adjusted to ensure the total height is 1560
+            var centroids = new List<Point>();
+            var originalCentroids = new List<Point>();
+
+            for (int segment = 0; segment < 3; segment++)
+            {
+                int startY;
+                int endY;
+                int segmentHeight;
+
+                if (segment == 1)
+                {
+                    // Middle segment
+                    startY = topBottomSegmentHeight + dontCareHeight;
+                    endY = startY + middleSegmentHeight;
+                    segmentHeight = middleSegmentHeight;
+                }
+                else
+                {
+                    // Top and bottom segments
+                    startY = segment * (topBottomSegmentHeight + dontCareHeight);
+                    endY = startY + topBottomSegmentHeight;
+                    segmentHeight = topBottomSegmentHeight;
+                }
+
+                if (segment == 2)
+                {
+                    // For the bottom segment, adjust the end Y value
+                    endY = AmbientDataSize;
+                }
+
+                double sumX = 0;
+                double sumY = 0;
+                double sumValue = 0;
+
+                for (int y = startY; y < endY; y++)
+                {
+                    for (int x = 0; x < TotalLines; x++)
+                    {
+                        int index = y * TotalLines + x;
+                        byte[] packet = _receivedPackets[x];
+                        if (packet != null)
+                        {
+                            int packetIndex = y * 3;
+                            int value = (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2]; // Combine RGB values into a single integer
+                            if (value == 0)
+                            {
+                                value = 1; // Avoid division by zero
+                            } // if
+                            // Adjust x and y to have (0,0) at the center of the segment
+                            double adjustedX = x - (TotalLines / 2.0);
+                            double adjustedY = y - (startY + segmentHeight / 2.0);
+
+                            sumX += adjustedX * value;
+                            sumY += adjustedY * value;
+                            sumValue += value;
+                        }
+                    }
+                }
+
+                double centroidX = sumX / sumValue;
+                double centroidY = sumY / sumValue;
+
+                // Store the original centroid coordinates
+                originalCentroids.Add(new Point(centroidX + (TotalLines / 2.0), centroidY + (startY + segmentHeight / 2.0)));
+
+                // Adjust coordinates to have (0,0) at the center of the segment
+                centroids.Add(new Point(centroidX, centroidY));
+            } // for
+
+            // Output the centroids
+            for (int i = 0; i < centroids.Count; i++)
+            {
+                DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
+            }
+
+            // Draw the centroids and segment boundaries on the bitmap using original coordinates
+            DrawCentroidsAndSegments(originalCentroids);
+        } // CalculateCentroids
+
+        public void DrawCentroidsAndSegments(List<Point> centroids)
+        {
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                // Draw the segment boundaries
+                int topBottomSegmentHeight = 313;
+                int middleSegmentHeight = 315;
+                int dontCareHeight = (AmbientDataSize - (2 * topBottomSegmentHeight + middleSegmentHeight)) / 2;
+
+                // Top segment boundary
+                context.DrawRectangle(null, new Pen(Brushes.Green, 1), new Rect(0, 0, TotalLines, topBottomSegmentHeight));
+
+                // Middle segment boundary
+                context.DrawRectangle(null, new Pen(Brushes.Green, 1), new Rect(0, topBottomSegmentHeight + dontCareHeight, TotalLines, middleSegmentHeight));
+
+                // Bottom segment boundary
+                context.DrawRectangle(null, new Pen(Brushes.Green, 1), new Rect(0, 2 * (topBottomSegmentHeight + dontCareHeight), TotalLines, topBottomSegmentHeight));
+
+                // Draw the centroids
+                foreach (var centroid in centroids)
+                {
+                    // Draw a circle at the centroid location
+                    context.DrawEllipse(Brushes.Red, null, centroid, 5, 5);
+                }
+            }
+
+            // Render the visual to a bitmap
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+
+            // Combine the centroids and segment boundaries with the existing bitmap
+            DrawingVisual combinedVisual = new DrawingVisual();
+            using (DrawingContext context = combinedVisual.RenderOpen())
+            {
+                context.DrawImage(_bitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+                context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
+            }
+
+            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            combinedBitmap.Render(combinedVisual);
+
+            // Update the ImageCanvas with the combined image
+            ImageCanvas.Background = new ImageBrush(combinedBitmap);
+        } // DrawCentroidsAndSegments
     } // class MainWindow
 } // namespace UsbApp
