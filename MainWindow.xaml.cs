@@ -15,6 +15,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace UsbApp
 {
@@ -255,6 +256,8 @@ namespace UsbApp
 
         public void ParseUdpPacket(byte[] data)
         {
+            // What if overlapping udp packets are received? and the next udp coincides with the previous udp with the same udp_Num & psn?
+            // What if the udp packets are not received in order?
             if (data.Length != UdpPacketSize)
             {
                 Dispatcher.Invoke(() => UdpDataTextBlock.Text = "Invalid UDP packet size.");
@@ -552,53 +555,6 @@ namespace UsbApp
             return checksum;
         } // CalculateChecksum
 
-        public DrawingVisual CreateAxesVisual()
-        {
-            DrawingVisual visual = new DrawingVisual();
-            using (DrawingContext context = visual.RenderOpen())
-            {
-                int width = _bitmap.PixelWidth;
-                int height = _bitmap.PixelHeight;
-
-                // Draw the horizontal axis
-                context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, height / 2), new Point(width, height / 2));
-
-                // Draw the vertical axis
-                context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, height));
-
-                // Draw the blue dot at the clicked point
-                if (_clickedPoint.HasValue)
-                {
-                    context.DrawEllipse(Brushes.Blue, null, _clickedPoint.Value, 3, 3);
-                }
-            }
-            return visual;
-        } // CreateAxesVisual
-
-        public void DrawAxes()
-        {
-            if (IsCheckboxChecked)
-            {
-                DrawingVisual axesVisual = CreateAxesVisual();
-                RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-                renderBitmap.Render(axesVisual);
-
-                // Combine the axes with the existing bitmap
-                DrawingVisual combinedVisual = new DrawingVisual();
-                using (DrawingContext context = combinedVisual.RenderOpen())
-                {
-                    context.DrawImage(_bitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
-                    context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap.PixelWidth, _bitmap.PixelHeight));
-                }
-
-                RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-                combinedBitmap.Render(combinedVisual);
-
-                // Update the ImageCanvas with the combined image
-                ImageCanvas.Background = new ImageBrush(combinedBitmap);
-            }
-        } // DrawAxes
-
         private void ImagePanel_Loaded(object sender, RoutedEventArgs e)
         {
             ResizeBitmapToFitDockPanel();
@@ -608,7 +564,7 @@ namespace UsbApp
             _bitmap = new WriteableBitmap(TotalLines, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
             ImageCanvas.Background = new ImageBrush(_bitmap);
             _imageData = new byte[TotalLines * AmbientDataSize * 3];
-            //DrawAxes(); // Draw the axes on the image
+            // DrawAxesAndCentroids(new List<Point>(), 312, 312, 312);
         } // InitializeBitmap
 
         public void ResizeBitmapToFitDockPanel()
@@ -659,8 +615,8 @@ namespace UsbApp
             }
 
             _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
-            //DrawAxes(); // Redraw the axes after updating the bitmap
             CalculateCentroids();
+            DrawGraphs();
         } // UpdateBitmap
 
         protected override void OnClosed(EventArgs e)
@@ -686,12 +642,13 @@ namespace UsbApp
         } // ResetData
 
 
-        // --------------------------- Calculation of the Centroids ---------------------------
+        // --------------------------------- Calculation of the Centroids ---------------------------------
+        // theta angle (top segment centroid pos & bottom centroid connected line) = atan2(y, x) * 180 / PI
         public void CalculateCentroids()
         {
-            int topBottomSegmentHeight = 313;
-            int middleSegmentHeight = 315;
-            int dontCareHeight = (AmbientDataSize - (2 * topBottomSegmentHeight + middleSegmentHeight)) / 2; // Adjusted to ensure the total height is 1560
+            int topBottomSegmentHeight = 312;
+            int middleSegmentHeight = 312;
+            int dontCareHeight = 312;
             var centroids = new List<Point>();
             var originalCentroids = new List<Point>();
 
@@ -741,9 +698,9 @@ namespace UsbApp
                             sumX += adjustedX * value;
                             sumY += adjustedY * value;
                             sumValue += value;
-                        }
-                    }
-                }
+                        } // if
+                    } // for
+                } // for
 
                 double centroidX = sumX / sumValue;
                 double centroidY = sumY / sumValue;
@@ -755,57 +712,82 @@ namespace UsbApp
                 centroids.Add(new Point(centroidX, centroidY));
             } // for
 
+            // Calculate the θ angle between the top and bottom segment centroids
+            double theta = Math.Atan2(centroids[2].Y - centroids[0].Y, centroids[2].X - centroids[0].X) * 180 / Math.PI;
+
             // Output the centroids
-            for (int i = 0; i < centroids.Count; i++)
+            Dispatcher.Invoke(() =>
             {
-                DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
-            }
+                for (int i = 0; i < centroids.Count; i++)
+                {
+
+                    DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
+                } // for
+            });
 
             // Format the centroid positions for display
-            string centroidPositions = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})\n" +
-                                       $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})\n" +
-                                       $"Centroid C ({centroids[2].X:F2}, {centroids[2].Y:F2})";
+            string centroidPositions1 = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})\n";
+            string centroidPositions2 = $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})\n";
+            string centroidPositions3 = $"Centroid C ({centroids[2].X:F2}, {centroids[2].Y:F2})\n";
+            string thetaAngle = $"θ = {theta:F2}°";
 
             // Update the CoordinateDataTextBlock with the formatted text
-            Dispatcher.Invoke(() => CoordinateDataTextBlock.Text = centroidPositions);
+            Dispatcher.Invoke(() =>
+            {
+                CoordinateDataTextBlock1.Text = centroidPositions1;
+                CoordinateDataTextBlock2.Text = centroidPositions2;
+                CoordinateDataTextBlock3.Text = centroidPositions3;
+                ThetaAngleTextBlock.Text = thetaAngle;
+            });
 
             // Draw the centroids and segment boundaries on the bitmap using original coordinates
-            DrawCentroidsAndSegments(originalCentroids);
+            DrawAxesAndCentroids(originalCentroids, topBottomSegmentHeight, middleSegmentHeight, dontCareHeight);
         } // CalculateCentroids
 
-
-        public void DrawCentroidsAndSegments(List<Point> centroids)
+        public void DrawAxesAndCentroids(List<Point> centroids, int topBottomSegmentHeight, int middleSegmentHeight, int dontCareHeight)
         {
             DrawingVisual visual = new DrawingVisual();
             using (DrawingContext context = visual.RenderOpen())
             {
-                // Draw the segment boundaries
-                int topBottomSegmentHeight = 313;
-                int middleSegmentHeight = 315;
-                int dontCareHeight = (AmbientDataSize - (2 * topBottomSegmentHeight + middleSegmentHeight)) / 2;
+                int width = _bitmap.PixelWidth;
+                int height = _bitmap.PixelHeight;
 
-                // Top segment boundary
+                if (IsCheckboxChecked)
+                {
+                    // Draw axes for the top segment
+                    int topSegmentMiddleY = topBottomSegmentHeight / 2;
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, topSegmentMiddleY), new Point(width, topSegmentMiddleY));
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, topBottomSegmentHeight));
+
+                    // Draw axes for the middle segment
+                    int middleSegmentStartY = topBottomSegmentHeight + dontCareHeight;
+                    int middleSegmentMiddleY = middleSegmentStartY + middleSegmentHeight / 2;
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, middleSegmentMiddleY), new Point(width, middleSegmentMiddleY));
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, middleSegmentStartY), new Point(width / 2, middleSegmentStartY + middleSegmentHeight));
+
+                    // Draw axes for the bottom segment
+                    int bottomSegmentStartY = 2 * (topBottomSegmentHeight + dontCareHeight);
+                    int bottomSegmentMiddleY = bottomSegmentStartY + topBottomSegmentHeight / 2;
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, bottomSegmentMiddleY), new Point(width, bottomSegmentMiddleY));
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, bottomSegmentStartY), new Point(width / 2, bottomSegmentStartY + topBottomSegmentHeight));
+                } // if
+
+                // Draw segment boundaries
                 context.DrawRectangle(null, new Pen(Brushes.Green, 1), new Rect(0, 0, TotalLines, topBottomSegmentHeight));
-
-                // Middle segment boundary
                 context.DrawRectangle(null, new Pen(Brushes.Green, 1), new Rect(0, topBottomSegmentHeight + dontCareHeight, TotalLines, middleSegmentHeight));
-
-                // Bottom segment boundary
                 context.DrawRectangle(null, new Pen(Brushes.Green, 1), new Rect(0, 2 * (topBottomSegmentHeight + dontCareHeight), TotalLines, topBottomSegmentHeight));
 
                 // Draw the centroids
                 foreach (var centroid in centroids)
                 {
-                    // Draw a circle at the centroid location
                     context.DrawEllipse(Brushes.Red, null, centroid, 5, 5);
-                }
-            }
+                } // foreach
+            } // using
 
-            // Render the visual to a bitmap
             RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap.PixelWidth, _bitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
             renderBitmap.Render(visual);
 
-            // Combine the centroids and segment boundaries with the existing bitmap
+            // Combine the axes and centroids with the existing bitmap
             DrawingVisual combinedVisual = new DrawingVisual();
             using (DrawingContext context = combinedVisual.RenderOpen())
             {
@@ -818,6 +800,209 @@ namespace UsbApp
 
             // Update the ImageCanvas with the combined image
             ImageCanvas.Background = new ImageBrush(combinedBitmap);
-        } // DrawCentroidsAndSegments
+        } // DrawAxesAndCentroids
+
+        public void DrawGraphs()
+        {
+            DrawXAxisGraph(0, XAxisGraphCanvas1);
+            DrawYAxisGraph(0, YAxisGraphCanvas1);
+            DrawXAxisGraph(1, XAxisGraphCanvas2);
+            DrawYAxisGraph(1, YAxisGraphCanvas2);
+            DrawXAxisGraph(2, XAxisGraphCanvas3);
+            DrawYAxisGraph(2, YAxisGraphCanvas3);
+        } // DrawGraphs
+
+        private void DrawXAxisGraph(int segment, Canvas canvas)
+        {
+            int segmentHeight = 312;
+            int dontCareHeight = 312;
+            int startY = segment * (segmentHeight + dontCareHeight);
+            if (segment == 1)
+            {
+                startY = segmentHeight + dontCareHeight;
+            } // if
+
+            double[] xSums = new double[TotalLines];
+            for (int x = 0; x < TotalLines; x++)
+            {
+                double sum = 0;
+                for (int y = startY; y < startY + segmentHeight; y++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        int packetIndex = y * 3;
+                        int value = (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2];
+                        sum += value;
+                    } // if
+                } // for
+                xSums[x] = sum;
+            } // for
+
+            double maxSum = xSums.Max();
+            double scale = canvas.Height / maxSum;
+            if (maxSum == 0)
+            {
+                scale = 1;
+            } // if
+
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(0, canvas.Height / 2), new Point(canvas.Width, canvas.Height / 2));
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(canvas.Width / 2, 35), new Point(canvas.Width / 2, 65));
+
+                PointCollection points = new PointCollection();
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    double y = (canvas.Height - (xSums[x] * scale)) / 2;
+                    context.DrawLine(new Pen(Brushes.Green, 1), new Point(x, canvas.Height / 2), new Point(x, y));
+                    points.Add(new Point(x, y));
+                } // for
+
+                // Draw the curve line using the highest points
+                if (points.Count > 1)
+                {
+                    PathFigure pathFigure = new PathFigure { StartPoint = points[0] };
+                    PolyBezierSegment bezierSegment = new PolyBezierSegment(points, true);
+                    pathFigure.Segments.Add(bezierSegment);
+                    PathGeometry pathGeometry = new PathGeometry();
+                    pathGeometry.Figures.Add(pathFigure);
+                    context.DrawGeometry(null, new Pen(Brushes.Green, 2), pathGeometry);
+                } // if
+            } // using
+
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap((int)canvas.Width, (int)canvas.Height, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+            canvas.Background = new ImageBrush(renderBitmap);
+        } // DrawXAxisGraph
+
+        private void DrawYAxisGraph(int segment, Canvas canvas)
+        {
+            int segmentHeight = 312;
+            int dontCareHeight = 312;
+            int startY = segment * (segmentHeight + dontCareHeight);
+            if (segment == 1)
+            {
+                startY = segmentHeight + dontCareHeight;
+            }
+
+            double[] ySums = new double[segmentHeight];
+            for (int y = startY; y < startY + segmentHeight; y++)
+            {
+                double sum = 0;
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        int packetIndex = y * 3;
+                        int value = (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2];
+                        sum += value;
+                    }
+                }
+                ySums[y - startY] = sum;
+            } // for
+
+            double maxSum = ySums.Max();
+            double scale = canvas.Width / maxSum;
+            if (maxSum == 0)
+            {
+                scale = 1;
+            } // if
+
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(canvas.Width / 2, 0), new Point(canvas.Width / 2, canvas.Height));
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(35, canvas.Height / 2), new Point(65, canvas.Height / 2));
+
+                PointCollection points = new PointCollection();
+                for (int y = 0; y < segmentHeight; y++)
+                {
+                    double x = (canvas.Width - (ySums[y] * scale)) / 2;
+                    if (x != (canvas.Width / 2))
+                    {
+                        x = (canvas.Width - (ySums[y] * scale)) / 2 + (canvas.Width / 2);
+                    } // if
+                    
+                    context.DrawLine(new Pen(Brushes.Green, 1), new Point(canvas.Width / 2, y), new Point(x, y));
+                    points.Add(new Point(x, y));
+                } // for
+
+                // Draw the curve line using the rightest points
+                if (points.Count > 1)
+                {
+                    PathFigure pathFigure = new PathFigure { StartPoint = points[0] };
+                    PolyBezierSegment bezierSegment = new PolyBezierSegment(points, true);
+                    pathFigure.Segments.Add(bezierSegment);
+                    PathGeometry pathGeometry = new PathGeometry();
+                    pathGeometry.Figures.Add(pathFigure);
+                    context.DrawGeometry(null, new Pen(Brushes.Green, 2), pathGeometry);
+                } // if
+            } // using
+
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap((int)canvas.Width, (int)canvas.Height, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+            canvas.Background = new ImageBrush(renderBitmap);
+        } // DrawYAxisGraph
+
+        // --------------------------------- Mouse Events -------------------------------------
+        public EnlargedSegmentWindow _enlargedSegmentWindow;
+        private void ImageCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Point clickPosition = e.GetPosition(ImageCanvas);
+            int segmentHeight = 312;
+            int dontCareHeight = 312;
+
+            int segmentIndex = (int)(clickPosition.Y / (segmentHeight + dontCareHeight));
+            if (segmentIndex == 1)
+            {
+                segmentIndex = 1;
+            }
+            else if (clickPosition.Y > segmentHeight + dontCareHeight)
+            {
+                segmentIndex = 2;
+            }
+            else
+            {
+                segmentIndex = 0;
+            }
+
+            ShowEnlargedSegment(segmentIndex);
+        } // ImageCanvas_MouseLeftButtonDown
+
+        private void ShowEnlargedSegment(int segmentIndex)
+        {
+            if (_enlargedSegmentWindow == null)
+            {
+                _enlargedSegmentWindow = new EnlargedSegmentWindow();
+                _enlargedSegmentWindow.Show();
+            }
+
+            int segmentHeight = 312;
+            int dontCareHeight = 312;
+            int startY = segmentIndex * (segmentHeight + dontCareHeight);
+            if (segmentIndex == 1)
+            {
+                startY = segmentHeight + dontCareHeight;
+            }
+
+            WriteableBitmap segmentBitmap = new WriteableBitmap(TotalLines, segmentHeight, 96, 96, PixelFormats.Gray8, null);
+            byte[] segmentData = new byte[TotalLines * segmentHeight];
+
+            for (int y = 0; y < segmentHeight; y++)
+            {
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    segmentData[y * TotalLines + x] = _imageData[(startY + y) * TotalLines + x];
+                }
+            }
+
+            segmentBitmap.WritePixels(new Int32Rect(0, 0, TotalLines, segmentHeight), segmentData, TotalLines, 0);
+            _enlargedSegmentWindow.UpdateImage(segmentBitmap, $"Enlarged Segment {segmentIndex + 1}");
+        } // ShowEnlargedSegment
     } // class MainWindow
 } // namespace UsbApp

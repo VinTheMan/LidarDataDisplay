@@ -23,15 +23,52 @@
                     </Grid>
                     <CheckBox x:Name="IsCheckboxCheckedCheckBox" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
                     <!-- TextBlock to display image dimensions -->
-                    <TextBlock x:Name="ImageDimensionsTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
                     <Grid Margin="30,10,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="270"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ImageDimensionsTextBlock" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
+                        <TextBlock x:Name="ThetaAngleTextBlock" Margin="30,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
+                    </Grid>
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Canvas for X-axis graph for segment 1 -->
+                        <Canvas x:Name="XAxisGraphCanvas1" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- Canvas for Y-axis graph for segment 1 -->
+                        <Canvas x:Name="YAxisGraphCanvas1" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                         <!-- TextBlock to display coordinate and ambient data value -->
-                        <TextBlock x:Name="CoordinateDataTextBlock" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
+                        <TextBlock x:Name="CoordinateDataTextBlock1" Grid.Column="2" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
+                    </Grid>
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Canvas for X-axis graph for segment 2 -->
+                        <Canvas x:Name="XAxisGraphCanvas2" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- Canvas for Y-axis graph for segment 2 -->
+                        <Canvas x:Name="YAxisGraphCanvas2" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- TextBlock to display coordinate and ambient data value -->
+                        <TextBlock x:Name="CoordinateDataTextBlock2" Grid.Column="2" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
+                    </Grid>
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Canvas for X-axis graph for segment 3 -->
+                        <Canvas x:Name="XAxisGraphCanvas3" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- Canvas for Y-axis graph for segment 3 -->
+                        <Canvas x:Name="YAxisGraphCanvas3" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- TextBlock to display coordinate and ambient data value -->
+                        <TextBlock x:Name="CoordinateDataTextBlock3" Grid.Column="2" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
                     </Grid>
                 </StackPanel>
             </TabItem>
@@ -46,7 +83,7 @@
         </TabControl>
         <DockPanel x:Name="ImagePanel" Grid.Column="1" Margin="0,0,0,0" Background="Gray" Loaded="ImagePanel_Loaded">
             <Canvas x:Name="ImageCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" HorizontalAlignment="Center" Background="Black"
-                    >
+                     MouseLeftButtonDown="ImageCanvas_MouseLeftButtonDown">
                 <Canvas.RenderTransform>
                     <TransformGroup>
                         <ScaleTransform x:Name="ImageScaleTransform" />
