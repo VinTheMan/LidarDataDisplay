@@ -7,9 +7,89 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition/>
-            <ColumnDefinition Width="Auto" MinWidth="250"/>
+            <ColumnDefinition Width="Auto" MinWidth="200"/>
         </Grid.ColumnDefinitions>
         <TabControl Grid.Column="0" Height="675" VerticalAlignment="Top" Margin="0" Background="#333333">
+            <TabItem Header="UDP Packet">
+                <StackPanel Height="675" VerticalAlignment="Top" Margin="0" Background="#333333">
+                    <TextBlock Text="UDP Packet Handling" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
+                    <Button Content="Start Listening" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
+                    <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
+                    <TextBlock x:Name="UdpDataTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
+                    <!-- TextBlock to display image dimensions -->
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ImageDimensionsTextBlock" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
+                        <TextBlock x:Name="ThetaAngleTextBlock" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
+                    </Grid>
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Canvas for X-axis graph for segment 1 -->
+                        <Canvas x:Name="XAxisGraphCanvas1" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- Canvas for Y-axis graph for segment 1 -->
+                        <Canvas x:Name="YAxisGraphCanvas1" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- StackPanel to display coordinate and D4-sigma data -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
+                            <TextBlock x:Name="CoordinateMaxTextBlock1" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="CoordinateCurrentTextBlock1" Foreground="#FFFFFF"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
+                            <TextBlock x:Name="CoordinateDataTextBlock1" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="D4SigmaTextBlock1" Foreground="#FFFFFF"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Canvas for X-axis graph for segment 2 -->
+                        <Canvas x:Name="XAxisGraphCanvas2" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- Canvas for Y-axis graph for segment 2 -->
+                        <Canvas x:Name="YAxisGraphCanvas2" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- StackPanel to display coordinate and D4-sigma data -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
+                            <TextBlock x:Name="CoordinateMaxTextBlock2" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="CoordinateCurrentTextBlock2" Foreground="#FFFFFF"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
+                            <TextBlock x:Name="CoordinateDataTextBlock2" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="D4SigmaTextBlock2" Foreground="#FFFFFF"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="30,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Canvas for X-axis graph for segment 3 -->
+                        <Canvas x:Name="XAxisGraphCanvas3" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- Canvas for Y-axis graph for segment 3 -->
+                        <Canvas x:Name="YAxisGraphCanvas3" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
+                        <!-- StackPanel to display coordinate and D4-sigma data -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
+                            <TextBlock x:Name="CoordinateMaxTextBlock3" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="CoordinateCurrentTextBlock3" Foreground="#FFFFFF"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
+                            <TextBlock x:Name="CoordinateDataTextBlock3" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="D4SigmaTextBlock3" Foreground="#FFFFFF"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </TabItem>
             <TabItem Header="Serial Port">
                 <StackPanel Height="675" VerticalAlignment="Top" Margin="0" Background="#333333">
                     <Grid Margin="30,20,30,0">
@@ -22,62 +102,6 @@
                         <Button Content="Read Data" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" Click="ReadDataButton_Click" Background="#555555" Foreground="#FFFFFF"/>
                     </Grid>
                     <CheckBox x:Name="IsCheckboxCheckedCheckBox" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
-                    <!-- TextBlock to display image dimensions -->
-                    <Grid Margin="30,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="ImageDimensionsTextBlock" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
-                        <TextBlock x:Name="ThetaAngleTextBlock" Margin="30,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
-                    </Grid>
-                    <Grid Margin="30,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <!-- Canvas for X-axis graph for segment 1 -->
-                        <Canvas x:Name="XAxisGraphCanvas1" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
-                        <!-- Canvas for Y-axis graph for segment 1 -->
-                        <Canvas x:Name="YAxisGraphCanvas1" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
-                        <!-- TextBlock to display coordinate and ambient data value -->
-                        <TextBlock x:Name="CoordinateDataTextBlock1" Grid.Column="2" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
-                    </Grid>
-                    <Grid Margin="30,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <!-- Canvas for X-axis graph for segment 2 -->
-                        <Canvas x:Name="XAxisGraphCanvas2" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
-                        <!-- Canvas for Y-axis graph for segment 2 -->
-                        <Canvas x:Name="YAxisGraphCanvas2" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
-                        <!-- TextBlock to display coordinate and ambient data value -->
-                        <TextBlock x:Name="CoordinateDataTextBlock2" Grid.Column="2" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
-                    </Grid>
-                    <Grid Margin="30,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <!-- Canvas for X-axis graph for segment 3 -->
-                        <Canvas x:Name="XAxisGraphCanvas3" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
-                        <!-- Canvas for Y-axis graph for segment 3 -->
-                        <Canvas x:Name="YAxisGraphCanvas3" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
-                        <!-- TextBlock to display coordinate and ambient data value -->
-                        <TextBlock x:Name="CoordinateDataTextBlock3" Grid.Column="2" HorizontalAlignment="Left" Margin="0,0,0,0" Foreground="#FFFFFF"/>
-                    </Grid>
-                </StackPanel>
-            </TabItem>
-            <TabItem Header="UDP Packet">
-                <StackPanel Height="675" VerticalAlignment="Top" Margin="0" Background="#333333">
-                    <TextBlock Text="UDP Packet Handling" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
-                    <Button Content="Start Listening" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
-                    <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
-                    <TextBlock x:Name="UdpDataTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
                 </StackPanel>
             </TabItem>
         </TabControl>

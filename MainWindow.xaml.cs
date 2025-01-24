@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 
 namespace UsbApp
 {
@@ -71,10 +72,19 @@ namespace UsbApp
             } // set
         } // IsCheckboxChecked
 
+        // Add fields to store the all-time max value coordinates
+        private Point[] _allTimeMaxCoordinates = new Point[3];
+
+
         public MainWindow()
         {
             InitializeComponent();
             DataContext = this;
+            // Initialize the all-time max coordinates
+            for (int i = 0; i < _allTimeMaxCoordinates.Length; i++)
+            {
+                _allTimeMaxCoordinates[i] = new Point(double.MinValue, double.MinValue);
+            } // for
             // Populate the serial port combo box
             // PopulateSerialPortComboBox();
             InitializeBitmap();
@@ -677,6 +687,9 @@ namespace UsbApp
                 double sumY = 0;
                 double sumValue = 0;
 
+                Point currentFrameMaxCoordinate = new Point();
+                double currentFrameMaxValue = double.MinValue;
+
                 for (int y = startY; y < endY; y++)
                 {
                     for (int x = 0; x < TotalLines; x++)
@@ -690,14 +703,21 @@ namespace UsbApp
                             if (value == 0)
                             {
                                 value = 1; // Avoid division by zero
-                            } // if
-                              // Adjust x and y to have (0,0) at the center of the segment
+                            }
+                            // Adjust x and y to have (0,0) at the center of the segment
                             double adjustedX = x - (TotalLines / 2.0);
                             double adjustedY = y - (startY + segmentHeight / 2.0);
 
                             sumX += adjustedX * value;
                             sumY += adjustedY * value;
                             sumValue += value;
+
+                            // Update the current frame max value coordinate
+                            if (value > currentFrameMaxValue)
+                            {
+                                currentFrameMaxValue = value;
+                                currentFrameMaxCoordinate = new Point(x, y);
+                            } // if
                         } // if
                     } // for
                 } // for
@@ -710,7 +730,42 @@ namespace UsbApp
 
                 // Adjust coordinates to have (0,0) at the center of the segment
                 centroids.Add(new Point(centroidX, centroidY));
-            } // for
+
+                // Calculate D4-sigma for the segment
+                double d4SigmaX, d4SigmaY;
+                CalculateD4Sigma(startY, endY, centroidX, centroidY, out d4SigmaX, out d4SigmaY);
+
+                // Update the all-time max value coordinate if necessary
+                // We probably shouldn't use _allTimeMaxCoordinates[segment].X for comparison
+                if (currentFrameMaxValue > _allTimeMaxCoordinates[segment].X)
+                {
+                    _allTimeMaxCoordinates[segment] = currentFrameMaxCoordinate;
+                } // if
+
+                // Output the D4-sigma values
+                Dispatcher.Invoke(() =>
+                {
+                    DebugWindow.Instance.DataTextBox.AppendText($"D4-sigma for segment {segment + 1}: σx = {d4SigmaX:F2}, σy = {d4SigmaY:F2}\n");
+                    switch (segment)
+                    {
+                        case 0:
+                            D4SigmaTextBlock1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
+                            CoordinateMaxTextBlock1.Text = $"All-time Max: ({_allTimeMaxCoordinates[segment].X}, {_allTimeMaxCoordinates[segment].Y})";
+                            CoordinateCurrentTextBlock1.Text = $"Current Max: ({currentFrameMaxCoordinate.X}, {currentFrameMaxCoordinate.Y})";
+                            break;
+                        case 1:
+                            D4SigmaTextBlock2.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
+                            CoordinateMaxTextBlock2.Text = $"All-time Max: ({_allTimeMaxCoordinates[segment].X}, {_allTimeMaxCoordinates[segment].Y})";
+                            CoordinateCurrentTextBlock2.Text = $"Current Max: ({currentFrameMaxCoordinate.X}, {currentFrameMaxCoordinate.Y})";
+                            break;
+                        case 2:
+                            D4SigmaTextBlock3.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
+                            CoordinateMaxTextBlock3.Text = $"All-time Max: ({_allTimeMaxCoordinates[segment].X}, {_allTimeMaxCoordinates[segment].Y})";
+                            CoordinateCurrentTextBlock3.Text = $"Current Max: ({currentFrameMaxCoordinate.X}, {currentFrameMaxCoordinate.Y})";
+                            break;
+                    } // switch
+                });
+            }
 
             // Calculate the θ angle between the top and bottom segment centroids
             double theta = Math.Atan2(centroids[2].Y - centroids[0].Y, centroids[2].X - centroids[0].X) * 180 / Math.PI;
@@ -720,15 +775,14 @@ namespace UsbApp
             {
                 for (int i = 0; i < centroids.Count; i++)
                 {
-
                     DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
                 } // for
             });
 
             // Format the centroid positions for display
-            string centroidPositions1 = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})\n";
-            string centroidPositions2 = $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})\n";
-            string centroidPositions3 = $"Centroid C ({centroids[2].X:F2}, {centroids[2].Y:F2})\n";
+            string centroidPositions1 = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})";
+            string centroidPositions2 = $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})";
+            string centroidPositions3 = $"Centroid C ({centroids[2].X:F2}, {centroids[2].Y:F2})";
             string thetaAngle = $"θ = {theta:F2}°";
 
             // Update the CoordinateDataTextBlock with the formatted text
@@ -743,6 +797,42 @@ namespace UsbApp
             // Draw the centroids and segment boundaries on the bitmap using original coordinates
             DrawAxesAndCentroids(originalCentroids, topBottomSegmentHeight, middleSegmentHeight, dontCareHeight);
         } // CalculateCentroids
+
+        private void CalculateD4Sigma(int startY, int endY, double centroidX, double centroidY, out double d4SigmaX, out double d4SigmaY)
+        {
+            double sumXX = 0;
+            double sumYY = 0;
+            double sumValue = 0;
+
+            for (int y = startY; y < endY; y++)
+            {
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        int packetIndex = y * 3;
+                        int value = (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2]; // Combine RGB values into a single integer
+                        if (value == 0)
+                        {
+                            value = 1; // Avoid division by zero
+                        } // if
+                          // Adjust x and y to have (0,0) at the center of the segment
+                        double adjustedX = x - (TotalLines / 2.0);
+                        double adjustedY = y - (startY + (endY - startY) / 2.0);
+
+                        sumXX += (adjustedX - centroidX) * (adjustedX - centroidX) * value;
+                        sumYY += (adjustedY - centroidY) * (adjustedY - centroidY) * value;
+                        sumValue += value;
+                    } // if
+                } // for
+            } // for
+
+            d4SigmaX = 4 * Math.Sqrt(sumXX / sumValue);
+            d4SigmaY = 4 * Math.Sqrt(sumYY / sumValue);
+        } // CalculateD4Sigma
+
 
         public void DrawAxesAndCentroids(List<Point> centroids, int topBottomSegmentHeight, int middleSegmentHeight, int dontCareHeight)
         {
@@ -927,7 +1017,7 @@ namespace UsbApp
                     {
                         x = (canvas.Width - (ySums[y] * scale)) / 2 + (canvas.Width / 2);
                     } // if
-                    
+
                     context.DrawLine(new Pen(Brushes.Green, 1), new Point(canvas.Width / 2, y), new Point(x, y));
                     points.Add(new Point(x, y));
                 } // for
