@@ -42,7 +42,6 @@ namespace UsbApp
         public SerialPort _serialPort;
         public WriteableBitmap _bitmap;
         public int _currentLine = 0;
-        public byte[] _imageData;
         public DispatcherTimer _timer;
         public int _packetIndex = 0;
 
@@ -74,7 +73,12 @@ namespace UsbApp
 
         // Add fields to store the all-time max value coordinates
         private Point[] _allTimeMaxCoordinates = new Point[3];
+        public double[] _allTimeMaxValue = new double[3];
 
+        private Point[] _currentFrameMaxCoordinates = new Point[3];
+        private double[] _currentFrameMaxValues = new double[3];
+
+        public List<Point> centroid_for_segmentWindow = new List<Point>();
 
         public MainWindow()
         {
@@ -83,7 +87,10 @@ namespace UsbApp
             // Initialize the all-time max coordinates
             for (int i = 0; i < _allTimeMaxCoordinates.Length; i++)
             {
-                _allTimeMaxCoordinates[i] = new Point(double.MinValue, double.MinValue);
+                _allTimeMaxCoordinates[i] = new Point(0, 0);
+                _allTimeMaxValue[i] = double.MinValue;
+                _currentFrameMaxCoordinates[i] = new Point(0, 0);
+                _currentFrameMaxValues[i] = double.MinValue;
             } // for
             // Populate the serial port combo box
             // PopulateSerialPortComboBox();
@@ -266,7 +273,7 @@ namespace UsbApp
 
         public void ParseUdpPacket(byte[] data)
         {
-            // What if overlapping udp packets are received? and the next udp coincides with the previous udp with the same udp_Num & psn?
+            // What if overlapping udp packets are received? and the next udp coincides with the previous udp (same udp_Num + psn)?
             // What if the udp packets are not received in order?
             if (data.Length != UdpPacketSize)
             {
@@ -573,7 +580,6 @@ namespace UsbApp
         {
             _bitmap = new WriteableBitmap(TotalLines, AmbientDataSize, 96, 96, PixelFormats.Gray8, null);
             ImageCanvas.Background = new ImageBrush(_bitmap);
-            _imageData = new byte[TotalLines * AmbientDataSize * 3];
             // DrawAxesAndCentroids(new List<Point>(), 312, 312, 312);
         } // InitializeBitmap
 
@@ -627,6 +633,11 @@ namespace UsbApp
             _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
             CalculateCentroids();
             DrawGraphs();
+
+            if(_enlargedSegmentWindow != null)
+            {
+                _enlargedSegmentWindow.UpdateImage(_bitmap);
+            } // if
         } // UpdateBitmap
 
         protected override void OnClosed(EventArgs e)
@@ -652,7 +663,7 @@ namespace UsbApp
         } // ResetData
 
 
-        // --------------------------------- Calculation of the Centroids ---------------------------------
+        // ------------------------------------------ Calculation of the Centroids ---------------------------------
         // theta angle (top segment centroid pos & bottom centroid connected line) = atan2(y, x) * 180 / PI
         public void CalculateCentroids()
         {
@@ -687,8 +698,8 @@ namespace UsbApp
                 double sumY = 0;
                 double sumValue = 0;
 
-                Point currentFrameMaxCoordinate = new Point();
-                double currentFrameMaxValue = double.MinValue;
+                _currentFrameMaxCoordinates[segment] = new Point();
+                _currentFrameMaxValues[segment] = double.MinValue;
 
                 for (int y = startY; y < endY; y++)
                 {
@@ -713,14 +724,14 @@ namespace UsbApp
                             sumValue += value;
 
                             // Update the current frame max value coordinate
-                            if (value > currentFrameMaxValue)
+                            if (value > _currentFrameMaxValues[segment])
                             {
-                                currentFrameMaxValue = value;
-                                currentFrameMaxCoordinate = new Point(x, y);
-                            } // if
-                        } // if
-                    } // for
-                } // for
+                                _currentFrameMaxValues[segment] = value;
+                                _currentFrameMaxCoordinates[segment] = new Point(x, y);
+                            }
+                        }
+                    }
+                }
 
                 double centroidX = sumX / sumValue;
                 double centroidY = sumY / sumValue;
@@ -736,10 +747,10 @@ namespace UsbApp
                 CalculateD4Sigma(startY, endY, centroidX, centroidY, out d4SigmaX, out d4SigmaY);
 
                 // Update the all-time max value coordinate if necessary
-                // We probably shouldn't use _allTimeMaxCoordinates[segment].X for comparison
-                if (currentFrameMaxValue > _allTimeMaxCoordinates[segment].X)
+                if (_currentFrameMaxValues[segment] > _allTimeMaxValue[segment])
                 {
-                    _allTimeMaxCoordinates[segment] = currentFrameMaxCoordinate;
+                    _allTimeMaxValue[segment] = _currentFrameMaxValues[segment];
+                    _allTimeMaxCoordinates[segment] = _currentFrameMaxCoordinates[segment];
                 } // if
 
                 // Output the D4-sigma values
@@ -751,21 +762,21 @@ namespace UsbApp
                         case 0:
                             D4SigmaTextBlock1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
                             CoordinateMaxTextBlock1.Text = $"All-time Max: ({_allTimeMaxCoordinates[segment].X}, {_allTimeMaxCoordinates[segment].Y})";
-                            CoordinateCurrentTextBlock1.Text = $"Current Max: ({currentFrameMaxCoordinate.X}, {currentFrameMaxCoordinate.Y})";
+                            CoordinateCurrentTextBlock1.Text = $"Current Max: ({_currentFrameMaxCoordinates[segment].X}, {_currentFrameMaxCoordinates[segment].Y})";
                             break;
                         case 1:
                             D4SigmaTextBlock2.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
                             CoordinateMaxTextBlock2.Text = $"All-time Max: ({_allTimeMaxCoordinates[segment].X}, {_allTimeMaxCoordinates[segment].Y})";
-                            CoordinateCurrentTextBlock2.Text = $"Current Max: ({currentFrameMaxCoordinate.X}, {currentFrameMaxCoordinate.Y})";
+                            CoordinateCurrentTextBlock2.Text = $"Current Max: ({_currentFrameMaxCoordinates[segment].X}, {_currentFrameMaxCoordinates[segment].Y})";
                             break;
                         case 2:
                             D4SigmaTextBlock3.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
                             CoordinateMaxTextBlock3.Text = $"All-time Max: ({_allTimeMaxCoordinates[segment].X}, {_allTimeMaxCoordinates[segment].Y})";
-                            CoordinateCurrentTextBlock3.Text = $"Current Max: ({currentFrameMaxCoordinate.X}, {currentFrameMaxCoordinate.Y})";
+                            CoordinateCurrentTextBlock3.Text = $"Current Max: ({_currentFrameMaxCoordinates[segment].X}, {_currentFrameMaxCoordinates[segment].Y})";
                             break;
-                    } // switch
+                    }
                 });
-            }
+            } // for
 
             // Calculate the θ angle between the top and bottom segment centroids
             double theta = Math.Atan2(centroids[2].Y - centroids[0].Y, centroids[2].X - centroids[0].X) * 180 / Math.PI;
@@ -793,6 +804,9 @@ namespace UsbApp
                 CoordinateDataTextBlock3.Text = centroidPositions3;
                 ThetaAngleTextBlock.Text = thetaAngle;
             });
+
+            // copy the centroid positions to the segment window
+            centroid_for_segmentWindow = originalCentroids;
 
             // Draw the centroids and segment boundaries on the bitmap using original coordinates
             DrawAxesAndCentroids(originalCentroids, topBottomSegmentHeight, middleSegmentHeight, dontCareHeight);
@@ -1070,29 +1084,11 @@ namespace UsbApp
             {
                 _enlargedSegmentWindow = new EnlargedSegmentWindow();
                 _enlargedSegmentWindow.Show();
-            }
+            } // if
 
-            int segmentHeight = 312;
-            int dontCareHeight = 312;
-            int startY = segmentIndex * (segmentHeight + dontCareHeight);
-            if (segmentIndex == 1)
-            {
-                startY = segmentHeight + dontCareHeight;
-            }
-
-            WriteableBitmap segmentBitmap = new WriteableBitmap(TotalLines, segmentHeight, 96, 96, PixelFormats.Gray8, null);
-            byte[] segmentData = new byte[TotalLines * segmentHeight];
-
-            for (int y = 0; y < segmentHeight; y++)
-            {
-                for (int x = 0; x < TotalLines; x++)
-                {
-                    segmentData[y * TotalLines + x] = _imageData[(startY + y) * TotalLines + x];
-                }
-            }
-
-            segmentBitmap.WritePixels(new Int32Rect(0, 0, TotalLines, segmentHeight), segmentData, TotalLines, 0);
-            _enlargedSegmentWindow.UpdateImage(segmentBitmap, $"Enlarged Segment {segmentIndex + 1}");
+            _enlargedSegmentWindow.Title = $"Segment {segmentIndex + 1}";
+            _enlargedSegmentWindow.segmentIndex = segmentIndex;
+            _enlargedSegmentWindow.UpdateImage(_bitmap);
         } // ShowEnlargedSegment
     } // class MainWindow
 } // namespace UsbApp
