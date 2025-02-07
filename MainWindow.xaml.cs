@@ -23,10 +23,12 @@ namespace UsbApp
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         // UART data speed : 64 bytes per 0.01s (sleep(10000)) should be successfully received and displayed
-        public const int AmbientDataSize = 1560; // Size of the ambient data
-        public const int UdpPacketSize = 1200; // Size of each UDP packet, should be 1200 bytes
+        public const int AmbientDataSize = 520; // Size of the ambient data
+        public const int AmbientDataSize_1560 = 1560; // Size of the ambient data
+        public const int UdpPacketSize = 1047; // Size of each UDP packet, should be 1200 bytes
+        public const int UdpPacketSize_1560 = 1200; // Size of each UDP packet, should be 1200 bytes
         // each udp packet has 1 byte udp_num, 4 udp packets form a vertical line on my bitmap.
-        public const int ValidDataSize = (int)(AmbientDataSize * 3); // Total valid bytes
+        public const int ValidDataSize = (int)(AmbientDataSize * 2); // Total valid bytes
                                                                      // (should be 4687 without udp numbers & psn (2 byte per UDP packet so 8 bytes in total))
         public const int ValidDataSize_uart = 2 + 1 + 2 + (AmbientDataSize * 3) + 2; // Total valid bytes coming from UART (should be 4687)
 
@@ -281,7 +283,8 @@ namespace UsbApp
                     byte[] receivedData = result.Buffer;
                     //Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"{receivedData[0]}");
                     //return;
-                    ParseUdpPacket(receivedData);
+                    //ParseUdpPacket(receivedData);
+                    ParseUdpPacket_V2(receivedData);
                 }
             }
             catch (ObjectDisposedException)
@@ -428,6 +431,64 @@ namespace UsbApp
             } // lock
         } // ParseUdpPacket
 
+
+        public void ParseUdpPacket_V2(byte[] data)
+        {
+            // Print the data for debug
+            // Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"Data: {BitConverter.ToString(data)}\n"));
+            // return;
+
+            if (data.Length != UdpPacketSize)
+            {
+                Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"Invalid UDP packet size. {data.Length} \n");
+                return;
+            }
+
+            int psn = data[0]; // 0 ~ 104 // 1 byte
+                               // Print the data for debug
+                               // Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"psn: {psn}\n"));
+                               // return;
+
+            lock (_lock)
+            {
+                // Store the received packet
+                _receivedPackets[psn] = new byte[UdpPacketSize - 7];
+                Array.Copy(data, 1, _receivedPackets[psn], 0, UdpPacketSize - 7);
+                _receivedPacketFlags[psn] = true;
+
+                // Check if all packets for the frame have been received
+                bool allPacketsReceived = true;
+                for (int i = 0; i < TotalLines; i++)
+                {
+                    if (!_receivedPacketFlags[i])
+                    {
+                        allPacketsReceived = false;
+                        break;
+                    }
+                }
+
+                if (allPacketsReceived)
+                {
+                    // Process the complete frame
+                    Dispatcher.Invoke(() =>
+                    {
+                        // print the whole _receivedPackets
+                        var debugMessages = new StringBuilder();
+                        for (int i = 0; i < TotalLines; i++)
+                        {
+                            debugMessages.AppendLine($"_receivedPackets[{i}]: {BitConverter.ToString(_receivedPackets[i])}");
+                        } // for
+
+                        DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
+                        UpdateBitmapV2();
+                    });
+
+                    // Clear the flags and buffer for the next frame
+                    ResetData();
+                } // if
+            } // lock
+        } // ParseUdpPacket_V2
+
         private void ParseCombinedData(byte[] combinedData)
         {
             var debugMessages = new StringBuilder();
@@ -439,8 +500,10 @@ namespace UsbApp
                 //ushort header = (ushort)(combinedData[offset] | (combinedData[offset + 1] << 8)); // 2 bytes
                 byte psn = combinedData[offset]; // 0 ~ 104 // 1 byte
                 //ushort packSize = (ushort)(combinedData[offset + 3] | (combinedData[offset + 4] << 8)); // 2 bytes
-                byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
-                Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 3);
+                //byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
+                byte[] ambientData = new byte[AmbientDataSize * 2]; // 1040 bytes
+                //Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 3);
+                Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 2);
                 //ushort checksum = (ushort)(combinedData[offset + 5 + (AmbientDataSize * 3)] | (combinedData[offset + 6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
                 bool hasInvalidData = false;
 
@@ -712,6 +775,33 @@ namespace UsbApp
                 _enlargedSegmentWindow.UpdateImage(_bitmap);
             } // if
         } // UpdateBitmap
+
+        public void UpdateBitmapV2()
+        {
+            byte[] grayData = new byte[TotalLines * AmbientDataSize];
+            for (int i = 0; i < TotalLines; i++)
+            {
+                if (_receivedPacketFlags[i])
+                {
+                    for (int j = 0; j < AmbientDataSize; j++)
+                    {
+                        // Combine two bytes to form a 16-bit value
+                        ushort value = (ushort)(_receivedPackets[i][j * 2] << 8 | _receivedPackets[i][j * 2 + 1]);
+                        // Convert the 16-bit value to grayscale
+                        grayData[j * TotalLines + i] = (byte)(value >> 8);
+                    }
+                }
+            }
+
+            _bitmap.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
+            //CalculateCentroids();
+            //DrawGraphs();
+
+            //if (_enlargedSegmentWindow != null)
+            //{
+            //    _enlargedSegmentWindow.UpdateImage(_bitmap);
+            //}
+        } // UpdateBitmapV2
 
         protected override void OnClosed(EventArgs e)
         {
