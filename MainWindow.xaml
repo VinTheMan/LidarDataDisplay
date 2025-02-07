@@ -13,7 +13,10 @@
             <TabItem Header="UDP Packet">
                 <StackPanel Height="675" VerticalAlignment="Top" Margin="0" Background="#333333">
                     <TextBlock Text="UDP Packet Handling" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
-                    <Button Content="Start Listening" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0">
+                        <Button Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
+                        <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0"/>
+                    </StackPanel>
                     <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
                     <TextBlock x:Name="UdpDataTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
                     <!-- TextBlock to display image dimensions -->
@@ -116,8 +119,5 @@
                 </Canvas.RenderTransform>
             </Canvas>
         </DockPanel>
-        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,0">
-            <Button Content="Save Image" Click="SaveImageButton_Click" Background="#555555" Foreground="#FFFFFF"/>
-        </StackPanel>
     </Grid>
 </Window>
