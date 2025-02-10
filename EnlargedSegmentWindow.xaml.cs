@@ -39,20 +39,27 @@ namespace UsbApp
             DrawingVisual visual = new DrawingVisual();
             using (DrawingContext context = visual.RenderOpen())
             {
-                int width = croppedBitmap.PixelWidth;
-                int height = croppedBitmap.PixelHeight;
-                MainWindow mainWindow = (MainWindow)Application.Current.MainWindow;
-
-                if (mainWindow.IsCheckboxChecked)
+                try
                 {
-                    // Draw axes
-                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, height / 2), new Point(width, height / 2));
-                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, height));
-                } // if
+                    int width = croppedBitmap.PixelWidth;
+                    int height = croppedBitmap.PixelHeight;
+                    MainWindow mainWindow = (MainWindow)Application.Current.MainWindow;
 
-                // Draw the centroids
-                Point centroid = mainWindow.centroid_for_segmentWindow[segmentIndex];
-                context.DrawEllipse(Brushes.Red, null, new Point(centroid.X, centroid.Y - startY), 5, 5);
+                    if (mainWindow.IsCheckboxChecked)
+                    {
+                        // Draw axes
+                        context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, height / 2), new Point(width, height / 2));
+                        context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, height));
+                    } // if
+
+                    // Draw the centroids
+                    Point centroid = mainWindow.centroid_for_segmentWindow[segmentIndex];
+                    context.DrawEllipse(Brushes.Red, null, new Point(centroid.X, centroid.Y - startY), 5, 5);
+                } // try
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                } // catch
             } // using
 
             RenderTargetBitmap renderBitmap = new RenderTargetBitmap(croppedBitmap.PixelWidth, croppedBitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);

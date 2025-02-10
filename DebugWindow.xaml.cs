@@ -117,18 +117,31 @@ namespace UsbApp
 
         private byte[] GenerateMockUdpPacket(int psn, Scenario scenario)
         {
-            byte[] packet = new byte[MainWindow.UdpPacketSize];
+            int UdpPacketSize = (((MainWindow)Application.Current.MainWindow).CurrentTab == 1560) ? MainWindow.UdpPacketSize_1560 : MainWindow.UdpPacketSize_520;
+            byte[] packet = new byte[UdpPacketSize];
 
-            // UDP number
-            packet[0] = (byte)(_packetIndex % 4); // 0 to 3
-
-            // PSN
-            packet[2] = (byte)psn;
-
-            // AmbientData
-            for (int i = 3; i < MainWindow.UdpPacketSize; i++)
+            if (((MainWindow)Application.Current.MainWindow).CurrentTab == 1560)
             {
-                packet[i] = (byte)_rand.Next(256);
+                // RXAA format
+                packet[0] = (byte)(_packetIndex % 4); // UDP number (0 to 3)
+                packet[1] = (byte)psn; // PSN (0 to 104)
+
+                // AmbientData
+                for (int i = 2; i < UdpPacketSize; i++)
+                {
+                    packet[i] = (byte)_rand.Next(256);
+                }
+            }
+            else
+            {
+                // BSAA format
+                packet[0] = (byte)psn; // PSN (0 to 104)
+
+                // AmbientData
+                for (int i = 1; i < UdpPacketSize; i++)
+                {
+                    packet[i] = (byte)_rand.Next(256);
+                }
             }
 
             // Modify packet based on scenario
@@ -140,8 +153,8 @@ namespace UsbApp
                     break;
                 case Scenario.ChecksumMismatch:
                     // Do not calculate checksum correctly
-                    packet[MainWindow.UdpPacketSize - 2] = 0x00;
-                    packet[MainWindow.UdpPacketSize - 1] = 0x00;
+                    packet[UdpPacketSize - 2] = 0x00;
+                    packet[UdpPacketSize - 1] = 0x00;
                     return packet;
                 case Scenario.RandomData:
                     // Randomize entire packet
@@ -150,12 +163,12 @@ namespace UsbApp
             }
 
             // Checksum
-            ushort checksum = ((MainWindow)Application.Current.MainWindow).CalculateChecksum(packet, MainWindow.UdpPacketSize - 2);
-            packet[MainWindow.UdpPacketSize - 2] = (byte)(checksum & 0xFF);
-            packet[MainWindow.UdpPacketSize - 1] = (byte)((checksum >> 8) & 0xFF);
+            ushort checksum = ((MainWindow)Application.Current.MainWindow).CalculateChecksum(packet, UdpPacketSize - 2);
+            packet[UdpPacketSize - 2] = (byte)(checksum & 0xFF);
+            packet[UdpPacketSize - 1] = (byte)((checksum >> 8) & 0xFF);
 
             return packet;
-        }
+        } // End of method GenerateMockUdpPacket
 
         protected override void OnClosed(EventArgs e)
         {

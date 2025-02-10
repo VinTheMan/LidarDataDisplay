@@ -12,7 +12,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Button Name="TestSimulationButton" Content="Start Simulation" Click="TestSimulationButton_Click" Margin="5" Grid.Column="0" Background="#555555" Foreground="#FFFFFF"/>
+                <!--<Button Name="TestSimulationButton" Content="Start Simulation" Click="TestSimulationButton_Click" Margin="5" Grid.Column="0" Background="#555555" Foreground="#FFFFFF"/> -->
                 <Button Name="ClearTextButton" Content="Clear Text" Click="ClearTextButton_Click" Margin="5" Grid.Column="2" Background="#555555" Foreground="#FFFFFF"/>
                 <Button Name="SaveLogButton" Content="Save Log" Click="SaveLogButton_Click" Margin="5" Grid.Column="3" Background="#555555" Foreground="#FFFFFF"/>
             </Grid>
