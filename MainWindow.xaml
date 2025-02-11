@@ -18,7 +18,7 @@
                     <StackPanel VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" Background="#333333" Grid.Column="0">
                         <TextBlock Text="UDP Packet Handling For RXAA" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0">
-                            <Button Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
+                            <Button x:Name="ListeningBtn" Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
                             <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="IsCheckboxCheckedCheckBox" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
@@ -100,7 +100,7 @@
                     <DockPanel x:Name="ImagePanel_1560" Grid.Column="1" Margin="0,0,0,0" Background="Gray" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <Viewbox Stretch="Uniform">
                             <Canvas x:Name="ImageCanvas_1560" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight_1560}" Background="Black"
-                                    MouseLeftButtonDown="ImageCanvas_1560_MouseLeftButtonDown">
+                                    MouseLeftButtonDown="ImageCanvas_1560_MouseLeftButtonDown" MouseMove="ImageCanvas_MouseMove" MouseLeave="ImageCanvas_MouseLeave">
                                 <Canvas.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="ImageScaleTransform_1560" />
@@ -121,7 +121,7 @@
                     <StackPanel VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" Background="#333333" Grid.Column="0">
                         <TextBlock Text="UDP Packet Handling For BSAA" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0">
-                            <Button Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
+                            <Button x:Name="ListeningBtn2" Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
                             <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0"/>
                         </StackPanel>
                         <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
@@ -203,7 +203,7 @@
                     <DockPanel x:Name="ImagePanel_520" Grid.Column="1" Margin="0,0,0,0" Background="Gray" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <Viewbox Stretch="Uniform">
                             <Canvas x:Name="ImageCanvas_520" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight_520}" Background="Black"
-                                    MouseLeftButtonDown="ImageCanvas_520_MouseLeftButtonDown">
+                                    MouseLeftButtonDown="ImageCanvas_520_MouseLeftButtonDown" MouseMove="ImageCanvas_MouseMove" MouseLeave="ImageCanvas_MouseLeave">
                                 <Canvas.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="ImageScaleTransform_520" />

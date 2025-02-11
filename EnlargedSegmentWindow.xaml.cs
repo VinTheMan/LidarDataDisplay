@@ -23,61 +23,69 @@ namespace UsbApp
 
         public void UpdateImage(WriteableBitmap wholeBitmap)
         {
-            int segmentHeight = 312;
-            int dontCareHeight = 312;
-
-            int startY = segmentIndex * (segmentHeight + dontCareHeight);
-            if (segmentIndex == 1)
+            if (((MainWindow)Application.Current.MainWindow).CurrentTab == 1560)
             {
-                startY = segmentHeight + dontCareHeight;
-            }
+                int segmentHeight = 312;
+                int dontCareHeight = 312;
 
-            // Create a cropped bitmap for the segment
-            CroppedBitmap croppedBitmap = new CroppedBitmap(wholeBitmap, new Int32Rect(0, startY, wholeBitmap.PixelWidth, segmentHeight));
-
-            // Create a DrawingVisual to draw the axes and centroids
-            DrawingVisual visual = new DrawingVisual();
-            using (DrawingContext context = visual.RenderOpen())
-            {
-                try
+                int startY = segmentIndex * (segmentHeight + dontCareHeight);
+                if (segmentIndex == 1)
                 {
-                    int width = croppedBitmap.PixelWidth;
-                    int height = croppedBitmap.PixelHeight;
-                    MainWindow mainWindow = (MainWindow)Application.Current.MainWindow;
+                    startY = segmentHeight + dontCareHeight;
+                }
 
-                    if (mainWindow.IsCheckboxChecked)
+                // Create a cropped bitmap for the segment
+                CroppedBitmap croppedBitmap = new CroppedBitmap(wholeBitmap, new Int32Rect(0, startY, wholeBitmap.PixelWidth, segmentHeight));
+
+                // Create a DrawingVisual to draw the axes and centroids
+                DrawingVisual visual = new DrawingVisual();
+                using (DrawingContext context = visual.RenderOpen())
+                {
+                    try
                     {
-                        // Draw axes
-                        context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, height / 2), new Point(width, height / 2));
-                        context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, height));
-                    } // if
+                        int width = croppedBitmap.PixelWidth;
+                        int height = croppedBitmap.PixelHeight;
+                        MainWindow mainWindow = (MainWindow)Application.Current.MainWindow;
 
-                    // Draw the centroids
-                    Point centroid = mainWindow.centroid_for_segmentWindow[segmentIndex];
-                    context.DrawEllipse(Brushes.Red, null, new Point(centroid.X, centroid.Y - startY), 5, 5);
-                } // try
-                catch (Exception e)
+                        if (mainWindow.IsCheckboxChecked)
+                        {
+                            // Draw axes
+                            context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, height / 2), new Point(width, height / 2));
+                            context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, height));
+                        } // if
+
+                        // Draw the centroids
+                        Point centroid = mainWindow.centroid_for_segmentWindow[segmentIndex];
+                        context.DrawEllipse(Brushes.Red, null, new Point(centroid.X, centroid.Y - startY), 5, 5);
+                    } // try
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.Message);
+                    } // catch
+                } // using
+
+                RenderTargetBitmap renderBitmap = new RenderTargetBitmap(croppedBitmap.PixelWidth, croppedBitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+                renderBitmap.Render(visual);
+
+                // Combine the axes and centroids with the cropped bitmap
+                DrawingVisual combinedVisual = new DrawingVisual();
+                using (DrawingContext context = combinedVisual.RenderOpen())
                 {
-                    Console.WriteLine(e.Message);
-                } // catch
-            } // using
+                    context.DrawImage(croppedBitmap, new Rect(0, 0, croppedBitmap.PixelWidth, croppedBitmap.PixelHeight));
+                    context.DrawImage(renderBitmap, new Rect(0, 0, croppedBitmap.PixelWidth, croppedBitmap.PixelHeight));
+                }
 
-            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(croppedBitmap.PixelWidth, croppedBitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-            renderBitmap.Render(visual);
+                RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(croppedBitmap.PixelWidth, croppedBitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+                combinedBitmap.Render(combinedVisual);
 
-            // Combine the axes and centroids with the cropped bitmap
-            DrawingVisual combinedVisual = new DrawingVisual();
-            using (DrawingContext context = combinedVisual.RenderOpen())
+                // Display the combined bitmap in an Image control
+                ImageSegment.Source = combinedBitmap;
+            } // if
+            else // enlarge the whole image
             {
-                context.DrawImage(croppedBitmap, new Rect(0, 0, croppedBitmap.PixelWidth, croppedBitmap.PixelHeight));
-                context.DrawImage(renderBitmap, new Rect(0, 0, croppedBitmap.PixelWidth, croppedBitmap.PixelHeight));
-            }
-
-            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(croppedBitmap.PixelWidth, croppedBitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
-            combinedBitmap.Render(combinedVisual);
-
-            // Display the combined bitmap in an Image control
-            ImageSegment.Source = combinedBitmap;
+                // enlarge the whole image
+                ImageSegment.Source = wholeBitmap;
+            } // else
         } // UpdateImage
     } // EnlargedSegmentWindow
 } // UsbApp

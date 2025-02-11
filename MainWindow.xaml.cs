@@ -141,6 +141,12 @@ namespace UsbApp
                 {
                     DebugWindow.Instance.DataTextBox.AppendText($"Current tab: {selectedTab.Name}\n");
                 });
+
+                // Stop listening for UDP packets and update button text
+                if (isListening)
+                {
+                    StopListening();
+                } // if
             } // if
         } // MainTabControl_SelectionChanged
 
@@ -238,16 +244,17 @@ namespace UsbApp
             {
                 StopListening();
                 button.Content = "Start Listening";
-            }
+            } // if
             else
             {
                 isListening = true;
                 udpClient = new UdpClient(7000); // Use the appropriate port number
                 UdpDataTextBlock.Text = "Listening for UDP packets...";
+                UdpDataTextBlock2.Text = "Listening for UDP packets...";
                 button.Content = "Stop Listening";
 
                 await Task.Run(() => ListenForUdpPackets());
-            }
+            } // else
         } // StartListeningButton_Click
 
         private void StopListening()
@@ -255,7 +262,10 @@ namespace UsbApp
             if (udpClient != null)
                 udpClient.Close();
             isListening = false;
+            ListeningBtn.Content = "Start Listening";
+            ListeningBtn2.Content = "Start Listening";
             UdpDataTextBlock.Text = "Stopped listening.";
+            UdpDataTextBlock2.Text = "Stopped listening.";
         } // StopListening
 
         private async void ListenForUdpPackets()
@@ -471,7 +481,6 @@ namespace UsbApp
         {
             var debugMessages = new StringBuilder();
             var invalidDataMessages = new List<string>();
-
             int AmbientDataSize = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
             int ValidDataSize = (CurrentTab == 1560) ? ValidDataSize_1560 : ValidDataSize_520;
             for (int i = 0; i < TotalLines; i++)
@@ -481,9 +490,12 @@ namespace UsbApp
                 byte psn = combinedData[offset]; // 0 ~ 104 // 1 byte
                 //ushort packSize = (ushort)(combinedData[offset + 3] | (combinedData[offset + 4] << 8)); // 2 bytes
                 //byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
-                byte[] ambientData = new byte[AmbientDataSize * 2]; // 1040 bytes
+                byte[] ambientData = (CurrentTab == 1560) ? new byte[AmbientDataSize * 3] : new byte[AmbientDataSize * 2]; //4680 / 1040 bytes
                 //Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 3);
-                Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 2);
+                if (CurrentTab == 1560)
+                    Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 3);
+                else
+                    Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 2);
                 //ushort checksum = (ushort)(combinedData[offset + 5 + (AmbientDataSize * 3)] | (combinedData[offset + 6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
                 bool hasInvalidData = false;
 
@@ -527,6 +539,8 @@ namespace UsbApp
                 {
                     DebugWindow.Instance.DataTextBox.AppendText(message + "\n");
                 } // foreach
+                // print out the combinedData for debug
+                //DebugWindow.Instance.DataTextBox.AppendText($"Combined Data: {combinedData[1]}\n");
                 UpdateBitmap();
             });
         } // ParseCombinedData
@@ -578,9 +592,12 @@ namespace UsbApp
                         grayData[j * TotalLines + i] = (byte)((r + g + b) / 3);
                     }
                 }
-            } // for
+            }
 
-            _bitmap_1560.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
+            // Enhance the gray data using histogram equalization
+            byte[] enhancedGrayData = EnhanceContrast(grayData);
+
+            _bitmap_1560.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), enhancedGrayData, TotalLines, 0);
 
             CalculateCentroids();
             DrawGraphs();
@@ -588,7 +605,7 @@ namespace UsbApp
             if (_enlargedSegmentWindow != null)
             {
                 _enlargedSegmentWindow.UpdateImage(_bitmap_1560);
-            } // if
+            }
         } // UpdateBitmap
 
         public void UpdateBitmapV2()
@@ -605,19 +622,40 @@ namespace UsbApp
                         ushort value = (ushort)(_receivedPackets[i][j * 2] << 8 | _receivedPackets[i][j * 2 + 1]);
                         // Convert the 16-bit value to grayscale
                         grayData[j * TotalLines + i] = (byte)(value >> 8);
-                    } // for
-                } // if
-            } // for
+                    }
+                }
+            }
 
-            _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
-            //CalculateCentroids();
-            //DrawGraphs();
+            // Enhance the gray data using histogram equalization
+            byte[] enhancedGrayData = EnhanceContrast(grayData);
 
-            //if (_enlargedSegmentWindow != null)
-            //{
-            //    _enlargedSegmentWindow.UpdateImage(_bitmap_520);
-            //}
+            _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), enhancedGrayData, TotalLines, 0);
         } // UpdateBitmapV2
+
+        private byte[] EnhanceContrast(byte[] grayData)
+        {
+            int[] histogram = new int[256];
+            foreach (byte value in grayData)
+            {
+                histogram[value]++;
+            }
+
+            int totalPixels = grayData.Length;
+            int[] cdf = new int[256];
+            cdf[0] = histogram[0];
+            for (int i = 1; i < 256; i++)
+            {
+                cdf[i] = cdf[i - 1] + histogram[i];
+            }
+
+            byte[] equalizedData = new byte[grayData.Length];
+            for (int i = 0; i < grayData.Length; i++)
+            {
+                equalizedData[i] = (byte)((cdf[grayData[i]] - cdf[0]) * 255 / (totalPixels - cdf[0]));
+            }
+
+            return equalizedData;
+        } // EnhanceContrast
 
         protected override void OnClosed(EventArgs e)
         {
@@ -784,6 +822,65 @@ namespace UsbApp
             DrawAxesAndCentroids(originalCentroids, topBottomSegmentHeight, middleSegmentHeight, dontCareHeight);
         } // CalculateCentroids
 
+        public void CalculateCentroidsOneSet()
+        {
+            int imageHeight = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+            double sumX = 0;
+            double sumY = 0;
+            double sumValue = 0;
+
+            for (int y = 0; y < imageHeight; y++)
+            {
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        int packetIndex = (CurrentTab == 1560) ? y * 3 : y * 2;
+                        int value = (CurrentTab == 1560)
+                            ? (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2]
+                            : (packet[packetIndex] << 8) | packet[packetIndex + 1];
+                        if (value == 0)
+                        {
+                            value = 1; // Avoid division by zero
+                        }
+                        // Adjust x and y to have (0,0) at the center of the image
+                        double adjustedX = x - (TotalLines / 2.0);
+                        double adjustedY = y - (imageHeight / 2.0);
+
+                        sumX += adjustedX * value;
+                        sumY += adjustedY * value;
+                        sumValue += value;
+                    }
+                }
+            }
+
+            double centroidX = sumX / sumValue;
+            double centroidY = sumY / sumValue;
+
+            // Adjust coordinates to have (0,0) at the center of the image
+            Point centroid = new Point(centroidX, centroidY);
+
+            // Output the centroid
+            Dispatcher.Invoke(() =>
+            {
+                DebugWindow.Instance.DataTextBox.AppendText($"Centroid of the whole image: ({centroid.X}, {centroid.Y})\n");
+            });
+
+            // Format the centroid position for display
+            string centroidPosition = $"Centroid ({centroid.X:F2}, {centroid.Y:F2})";
+
+            // Update the CoordinateDataTextBlock with the formatted text
+            Dispatcher.Invoke(() =>
+            {
+                CoordinateDataTextBlock1.Text = centroidPosition;
+            });
+
+            // Draw the centroid on the bitmap
+            DrawAxesAndCentroidOneSet(centroid, imageHeight);
+        } // CalculateCentroidsOneSet
+
         private void CalculateD4Sigma(int startY, int endY, double centroidX, double centroidY, out double d4SigmaX, out double d4SigmaY)
         {
             double sumXX = 0;
@@ -877,6 +974,44 @@ namespace UsbApp
             // Update the ImageCanvas with the combined image
             ImageCanvas_1560.Background = new ImageBrush(combinedBitmap);
         } // DrawAxesAndCentroids
+
+        public void DrawAxesAndCentroidOneSet(Point centroid, int imageHeight)
+        {
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                int width = (CurrentTab == 1560) ? _bitmap_1560.PixelWidth : _bitmap_520.PixelWidth;
+                int height = (CurrentTab == 1560) ? _bitmap_1560.PixelHeight : _bitmap_520.PixelHeight;
+
+                if (IsCheckboxChecked)
+                {
+                    // Draw axes for the whole image
+                    int middleY = imageHeight / 2;
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, middleY), new Point(width, middleY));
+                    context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, imageHeight));
+                }
+
+                // Draw the centroid
+                context.DrawEllipse(Brushes.Red, null, centroid, 5, 5);
+            }
+
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+
+            // Combine the axes and centroid with the existing bitmap
+            DrawingVisual combinedVisual = new DrawingVisual();
+            using (DrawingContext context = combinedVisual.RenderOpen())
+            {
+                context.DrawImage(_bitmap_1560, new Rect(0, 0, _bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight));
+                context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight));
+            }
+
+            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            combinedBitmap.Render(combinedVisual);
+
+            // Update the ImageCanvas with the combined image
+            ImageCanvas_1560.Background = new ImageBrush(combinedBitmap);
+        } // DrawAxesAndCentroidOneSet
 
         public void DrawGraphs()
         {
@@ -1058,32 +1193,97 @@ namespace UsbApp
 
         private void ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            // 520 ver does not have segments, we enlarge the whole image
             Point clickPosition = e.GetPosition(ImageCanvas_520);
             double centerX = ImageCanvas_520.ActualWidth / 2;
             double centerY = ImageCanvas_520.ActualHeight / 2;
             double adjustedX = clickPosition.X - centerX;
             double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
             ClickPositionTextBlock_520.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
-            return;
-            int segmentHeight = 312;
-            int dontCareHeight = 312;
 
-            int segmentIndex = (int)(clickPosition.Y / (segmentHeight + dontCareHeight));
-            if (segmentIndex == 1)
+            ShowEnlargedSegment(0);
+        } // ImageCanvas_520_MouseLeftButtonDown
+
+        private void ImageCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            Point position = e.GetPosition((IInputElement)sender);
+            DrawCross(position);
+        } // ImageCanvas_MouseMove
+
+        private void ImageCanvas_MouseLeave(object sender, MouseEventArgs e)
+        {
+            ClearCross();
+        } // ImageCanvas_MouseLeave
+
+        private void DrawCross(Point position)
+        {
+            int width = (CurrentTab == 1560) ? _bitmap_1560.PixelWidth : _bitmap_520.PixelWidth;
+            int height = (CurrentTab == 1560) ? _bitmap_1560.PixelHeight : _bitmap_520.PixelHeight;
+
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
             {
-                segmentIndex = 1;
-            }
-            else if (clickPosition.Y > segmentHeight + dontCareHeight)
+                // Draw the existing image
+                if (CurrentTab == 1560)
+                {
+                    context.DrawImage(_bitmap_1560, new Rect(0, 0, width, height));
+                } // if
+                else
+                {
+                    context.DrawImage(_bitmap_520, new Rect(0, 0, width, height));
+                } // else
+
+                // Draw the cross
+                context.DrawLine(new Pen(Brushes.BlueViolet, 0.7), new Point(0, position.Y), new Point(width, position.Y));
+                context.DrawLine(new Pen(Brushes.BlueViolet, 0.7), new Point(position.X, 0), new Point(position.X, height));
+            } // using
+
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+
+            // Update the ImageCanvas with the combined image
+            if (CurrentTab == 1560)
             {
-                segmentIndex = 2;
-            }
+                ImageCanvas_1560.Background = new ImageBrush(renderBitmap);
+            } // if
             else
             {
-                segmentIndex = 0;
+                ImageCanvas_520.Background = new ImageBrush(renderBitmap);
+            } // else
+        } // DrawCross
+
+        private void ClearCross()
+        {
+            int width = (CurrentTab == 1560) ? _bitmap_1560.PixelWidth : _bitmap_520.PixelWidth;
+            int height = (CurrentTab == 1560) ? _bitmap_1560.PixelHeight : _bitmap_520.PixelHeight;
+
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                // Draw the existing image
+                if (CurrentTab == 1560)
+                {
+                    context.DrawImage(_bitmap_1560, new Rect(0, 0, width, height));
+                }
+                else
+                {
+                    context.DrawImage(_bitmap_520, new Rect(0, 0, width, height));
+                }
             }
 
-            ShowEnlargedSegment(segmentIndex);
-        } // ImageCanvas_520_MouseLeftButtonDown
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+
+            // Update the ImageCanvas with the combined image
+            if (CurrentTab == 1560)
+            {
+                ImageCanvas_1560.Background = new ImageBrush(renderBitmap);
+            } // if
+            else
+            {
+                ImageCanvas_520.Background = new ImageBrush(renderBitmap);
+            } // else
+        } // ClearCross
 
         private void ShowEnlargedSegment(int segmentIndex)
         {
