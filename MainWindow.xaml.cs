@@ -107,9 +107,9 @@ namespace UsbApp
             for (int i = 0; i < _allTimeMaxCoordinates.Length; i++)
             {
                 _allTimeMaxCoordinates[i] = new Point(0, 0);
-                _allTimeMaxValue[i] = double.MinValue;
+                _allTimeMaxValue[i] = 0;
                 _currentFrameMaxCoordinates[i] = new Point(0, 0);
-                _currentFrameMaxValues[i] = double.MinValue;
+                _currentFrameMaxValues[i] = 0;
             } // for
             // Populate the serial port combo box
             // PopulateSerialPortComboBox();
@@ -219,13 +219,13 @@ namespace UsbApp
                                     byte r = _receivedPackets_save[col][row * 3];
                                     byte g = _receivedPackets_save[col][row * 3 + 1];
                                     byte b = _receivedPackets_save[col][row * 3 + 2];
-                                    rowData.Add($"{b:X2}{g:X2}{r:X2}");
+                                    rowData.Add($"0x{b:X2}{g:X2}{r:X2}");
                                     //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({col},{row}):{b:X2}\n"));
                                 } // if
                                 else
                                 {
                                     ushort value = (ushort)(_receivedPackets_save[col][row * 2] << 8 | _receivedPackets[col][row * 2 + 1]);
-                                    rowData.Add($"{value:X4}");
+                                    rowData.Add($"0x{value:X4}");
                                 } // else
                             } // if
                             else
@@ -602,12 +602,15 @@ namespace UsbApp
                         byte g = _receivedPackets[i][j * 3 + 1];
                         byte b = _receivedPackets[i][j * 3 + 2];
                         // Combine 3 bytes to form an unsigned int value
-                        uint value = (uint)((b << 16) | (g << 8) | r);
-                        value *= 2048; // Multiply by 2048
+                        ulong value = (ulong)((b << 16) | (g << 8) | r);
+                        //value *= 2048; // Multiply by 2048
                         //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({i},{j}):{b:X2}-{g:X2}-{r:X2} == {value}\n"));
                         // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
-                        value = (uint)((((value - 0) * (255 - 0)) / (4194304 - 0) + 0));
-                        grayData[j * TotalLines + i] = Convert.ToByte(value); // Convert to grayscale
+                        //value = (ulong)((((value - 0) * (255 - 0)) / (4194304 - 0) + 0));
+                        value = (ulong)((((value - 0) * (255 - 0)) / (32768 - 0) + 0));
+
+                        value = Math.Min(value, 255); // Ensure value does not exceed 255
+                        grayData[j * TotalLines + i] = Convert.ToByte(value);
                         //grayData[j * TotalLines + i] = (byte)((r + g + b) / 3);
                     } // for
                 } // if
@@ -730,10 +733,10 @@ namespace UsbApp
                             {
                                 _currentFrameMaxValues[segment] = value;
                                 _currentFrameMaxCoordinates[segment] = new Point(x, y);
-                            }
-                        }
-                    }
-                }
+                            } // if
+                        } // if
+                    } // for
+                } // for
 
                 double centroidX = sumX / sumValue;
                 double centroidY = sumY / sumValue;

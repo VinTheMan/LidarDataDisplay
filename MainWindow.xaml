@@ -1,14 +1,15 @@
 ﻿<Window x:Class="UsbApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Image Sensor Signal Display" Height="700" Width="800"
+        Title="Image Sensor Signal Display v0.2 2025.02.12" Height="700" Width="800"
         Background="#333333" Foreground="#FFFFFF"
         Closed="MainWindow_Closed">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition />
+            <ColumnDefinition Width="107*" />
+            <ColumnDefinition Width="693*"/>
         </Grid.ColumnDefinitions>
-        <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged" Grid.Column="0" VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" Background="#333333">
+        <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged" Grid.Column="0" Background="#333333" Grid.ColumnSpan="2">
             <TabItem Header="RXAA(1560)" Name="Height_1560">
                 <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                     <Grid.ColumnDefinitions>
