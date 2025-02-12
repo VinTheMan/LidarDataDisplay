@@ -52,6 +52,8 @@ namespace UsbApp
         public Point clickPosition;
         public byte[][] _receivedPackets = new byte[TotalLines][];
         public bool[] _receivedPacketFlags = new bool[TotalLines];
+        public byte[][] _receivedPackets_save = new byte[TotalLines][];
+        public bool[] _receivedPacketFlags_save = new bool[TotalLines];
         public Point? _clickedPoint = null;
 
         public int _lastPsn = -1;
@@ -210,18 +212,19 @@ namespace UsbApp
                         List<string> rowData = new List<string>();
                         for (int col = 0; col < TotalLines; col++)
                         {
-                            if (_receivedPacketFlags[col])
+                            if (_receivedPacketFlags_save[col])
                             {
                                 if (CurrentTab == 1560)
                                 {
-                                    byte r = _receivedPackets[col][row * 3];
-                                    byte g = _receivedPackets[col][row * 3 + 1];
-                                    byte b = _receivedPackets[col][row * 3 + 2];
-                                    rowData.Add($"{r:X2}{g:X2}{b:X2}");
+                                    byte r = _receivedPackets_save[col][row * 3];
+                                    byte g = _receivedPackets_save[col][row * 3 + 1];
+                                    byte b = _receivedPackets_save[col][row * 3 + 2];
+                                    rowData.Add($"{b:X2}{g:X2}{r:X2}");
+                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({col},{row}):{b:X2}\n"));
                                 } // if
                                 else
                                 {
-                                    ushort value = (ushort)(_receivedPackets[col][row * 2] << 8 | _receivedPackets[col][row * 2 + 1]);
+                                    ushort value = (ushort)(_receivedPackets_save[col][row * 2] << 8 | _receivedPackets[col][row * 2 + 1]);
                                     rowData.Add($"{value:X4}");
                                 } // else
                             } // if
@@ -304,6 +307,7 @@ namespace UsbApp
 
             int UdpPacketSize = (CurrentTab == 1560) ? UdpPacketSize_1560 : UdpPacketSize_520;
             int ValidDataSize = (CurrentTab == 1560) ? ValidDataSize_1560 : ValidDataSize_520;
+
             if (data.Length != UdpPacketSize)
             {
                 Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"Invalid UDP packet size. {data.Length} \n");
@@ -315,8 +319,6 @@ namespace UsbApp
                 byte udpNumber = data[0]; // 0 ~ 3 // 1 byte
                 int psn = data[1]; // 0 ~ 104 // 1 byte
                                    // print the data for debug
-                                   //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"udpNumber: {udpNumber}, psn: {psn}\n"));
-                                   //return;
 
                 lock (_lock)
                 {
@@ -333,14 +335,18 @@ namespace UsbApp
                                 {
                                     if (_receivedPacketsDict[i][j] != null)
                                     {
-                                        int combinedDataOffset = i * ValidDataSize + j * (UdpPacketSize - 2);
+                                        int combinedDataOffset = j * (UdpPacketSize - 2);
+                                        // Store the received packet
+                                        _receivedPackets[i] = new byte[AmbientDataSize_1560 * 3];
+                                        _receivedPacketFlags[i] = true;
                                         if (j == 3)
                                         {
-                                            Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, combinedDataOffset, 1086);
+                                            Array.Copy(_receivedPacketsDict[i][j], 0, _receivedPackets[i], combinedDataOffset, 1086);
+
                                         } // if
                                         else
                                         {
-                                            Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, combinedDataOffset, UdpPacketSize - 2);
+                                            Array.Copy(_receivedPacketsDict[i][j], 0, _receivedPackets[i], combinedDataOffset, UdpPacketSize - 2);
                                         } // else
 
                                         // print the data for debug
@@ -348,18 +354,17 @@ namespace UsbApp
                                     } // if
                                 } // for
                             } // if
-
-                            // put psn at the start of combinedData and move the rest of the data to the right
-                            Array.Copy(combinedData, 0, combinedData, 1, combinedData.Length - 1);
-                            combinedData[0] = (byte)i;
                         } // for
 
-                        ParseCombinedData(combinedData);
-
-                        // Clear the dictionaries for the next frame
-                        _receivedPacketFlagsDict.Clear();
-                        _receivedPacketsDict.Clear();
-                        ResetData();
+                        //ParseCombinedData(combinedData);
+                        Dispatcher.Invoke(() =>
+                        {
+                            UpdateBitmap();
+                            // Clear the dictionaries for the next frame
+                            _receivedPacketFlagsDict.Clear();
+                            _receivedPacketsDict.Clear();
+                            ResetData();
+                        });
                     } // if
 
                     // Initialize the storage for the packets if not already done
@@ -373,6 +378,8 @@ namespace UsbApp
                     _receivedPacketsDict[psn][udpNumber] = new byte[UdpPacketSize - 2];
                     Array.Copy(data, 2, _receivedPacketsDict[psn][udpNumber], 0, UdpPacketSize - 2);
                     _receivedPacketFlagsDict[psn] |= (1 << udpNumber);
+                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"test: {BitConverter.ToString(_receivedPacketsDict[psn][udpNumber])}, psn: {psn}\n"));
+                    //return;
 
                     // Check if all 4 UDP packets for this PSN have been received
                     if (_receivedPacketFlagsDict[psn] == 0x0F)
@@ -385,46 +392,51 @@ namespace UsbApp
                             {
                                 allPacketsReceived = false;
                                 break;
-                            }
-                        }
+                            } // if
+                        } // for
 
                         if (allPacketsReceived)
                         {
-                            // Process the complete frame
-                            byte[] combinedData = new byte[(ValidDataSize + 1) * TotalLines];
-                            //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"{combinedData.Length}\n"));
-
                             for (int i = 0; i < TotalLines; i++)
                             {
+                                _receivedPacketFlags[i] = true;
+                                byte[] wholeVerticalLine = new byte[AmbientDataSize_1560 * 3];
+
                                 for (int j = 0; j < 4; j++)
                                 {
-                                    int combinedDataOffset = i * ValidDataSize + j * (UdpPacketSize - 2);
-
+                                    int combinedDataOffset = j * (UdpPacketSize - 2);
+                                    // Store the received packet
                                     if (j == 3)
                                     {
-                                        Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, combinedDataOffset, 1086);
+                                        Array.Copy(_receivedPacketsDict[i][j], 0, wholeVerticalLine, combinedDataOffset, 1086);
                                     } // if
                                     else
                                     {
-                                        Array.Copy(_receivedPacketsDict[i][j], 0, combinedData, combinedDataOffset, UdpPacketSize - 2);
+                                        Array.Copy(_receivedPacketsDict[i][j], 0, wholeVerticalLine, combinedDataOffset, _receivedPacketsDict[i][j].Length);
                                     } // else
 
                                     // print the data for debug
-                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"_receivedPacketsDict[{i}][{j}]: {combinedData[combinedDataOffset]}\n"));
+                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"OG: {i}, {j} :: {_receivedPacketsDict[i][j][0]:X2}-{_receivedPacketsDict[i][j][1]:X2}---{_receivedPacketsDict[i][j][1197]:X2}\n" +
+                                    //    $"DE: {i},{j} ::{wholeVerticalLine[2395]:X2}-{wholeVerticalLine[2396]:X2}-{wholeVerticalLine[2397]:X2}\n"));
+                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"{combinedDataOffset}\n"));
                                 } // for
 
-                                // put psn at the start of combinedData and move the rest of the data to the right
-                                Array.Copy(combinedData, 0, combinedData, 1, combinedData.Length - 1);
-                                combinedData[0] = (byte)i;
+                                // Paste wholeVerticalLine to _receivedPackets[i]
+                                _receivedPackets[i] = wholeVerticalLine.ToArray();
+
+                                //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"udp: {_receivedPackets[i].Length}, psn: {_receivedPacketsDict[i][0][1]:X2}\n"));
                             } // for
 
                             // Parse the combined data
-                            ParseCombinedData(combinedData);
-
-                            // Clear the flags and buffer for the next frame
-                            _receivedPacketFlagsDict.Clear();
-                            _receivedPacketsDict.Clear();
-                            ResetData();
+                            //ParseCombinedData(combinedData);
+                            Dispatcher.Invoke(() =>
+                            {
+                                UpdateBitmap();
+                                // Clear the flags and buffer for the next frame
+                                _receivedPacketFlagsDict.Clear();
+                                _receivedPacketsDict.Clear();
+                                ResetData();
+                            });
                         } // if
                     } // if
                 } // lock
@@ -534,10 +546,10 @@ namespace UsbApp
             // Update the UI in a single Dispatcher.Invoke call
             Dispatcher.Invoke(() =>
             {
-                DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
+                //DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
                 foreach (var message in invalidDataMessages)
                 {
-                    DebugWindow.Instance.DataTextBox.AppendText(message + "\n");
+                    //DebugWindow.Instance.DataTextBox.AppendText(message + "\n");
                 } // foreach
                 // print out the combinedData for debug
                 //DebugWindow.Instance.DataTextBox.AppendText($"Combined Data: {combinedData[1]}\n");
@@ -586,18 +598,22 @@ namespace UsbApp
                 {
                     for (int j = 0; j < AmbientDataSize; j++)
                     {
-                        int r = _receivedPackets[i][j * 3];
-                        int g = _receivedPackets[i][j * 3 + 1];
-                        int b = _receivedPackets[i][j * 3 + 2];
-                        grayData[j * TotalLines + i] = (byte)((r + g + b) / 3);
-                    }
-                }
-            }
+                        byte r = _receivedPackets[i][j * 3];
+                        byte g = _receivedPackets[i][j * 3 + 1];
+                        byte b = _receivedPackets[i][j * 3 + 2];
+                        // Combine 3 bytes to form an unsigned int value
+                        uint value = (uint)((b << 16) | (g << 8) | r);
+                        value *= 2048; // Multiply by 2048
+                        //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({i},{j}):{b:X2}-{g:X2}-{r:X2} == {value}\n"));
+                        // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
+                        value = (uint)((((value - 0) * (255 - 0)) / (4194304 - 0) + 0));
+                        grayData[j * TotalLines + i] = Convert.ToByte(value); // Convert to grayscale
+                        //grayData[j * TotalLines + i] = (byte)((r + g + b) / 3);
+                    } // for
+                } // if
+            } // for
 
-            // Enhance the gray data using histogram equalization
-            byte[] enhancedGrayData = EnhanceContrast(grayData);
-
-            _bitmap_1560.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), enhancedGrayData, TotalLines, 0);
+            _bitmap_1560.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
 
             CalculateCentroids();
             DrawGraphs();
@@ -605,7 +621,7 @@ namespace UsbApp
             if (_enlargedSegmentWindow != null)
             {
                 _enlargedSegmentWindow.UpdateImage(_bitmap_1560);
-            }
+            } // if
         } // UpdateBitmap
 
         public void UpdateBitmapV2()
@@ -620,42 +636,15 @@ namespace UsbApp
                     {
                         // Combine two bytes to form a 16-bit value
                         ushort value = (ushort)(_receivedPackets[i][j * 2] << 8 | _receivedPackets[i][j * 2 + 1]);
+                        // What should we do with the value????
                         // Convert the 16-bit value to grayscale
                         grayData[j * TotalLines + i] = (byte)(value >> 8);
                     }
                 }
-            }
+            } // 
 
-            // Enhance the gray data using histogram equalization
-            byte[] enhancedGrayData = EnhanceContrast(grayData);
-
-            _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), enhancedGrayData, TotalLines, 0);
+            _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
         } // UpdateBitmapV2
-
-        private byte[] EnhanceContrast(byte[] grayData)
-        {
-            int[] histogram = new int[256];
-            foreach (byte value in grayData)
-            {
-                histogram[value]++;
-            }
-
-            int totalPixels = grayData.Length;
-            int[] cdf = new int[256];
-            cdf[0] = histogram[0];
-            for (int i = 1; i < 256; i++)
-            {
-                cdf[i] = cdf[i - 1] + histogram[i];
-            }
-
-            byte[] equalizedData = new byte[grayData.Length];
-            for (int i = 0; i < grayData.Length; i++)
-            {
-                equalizedData[i] = (byte)((cdf[grayData[i]] - cdf[0]) * 255 / (totalPixels - cdf[0]));
-            }
-
-            return equalizedData;
-        } // EnhanceContrast
 
         protected override void OnClosed(EventArgs e)
         {
@@ -667,6 +656,9 @@ namespace UsbApp
         {
             _lastPsn = -1; // Reset the last PSN value
             _currentLine = 0;
+            // Save the data before resetting
+            Array.Copy(_receivedPackets, _receivedPackets_save, _receivedPackets.Length);
+            Array.Copy(_receivedPacketFlags, _receivedPacketFlags_save, _receivedPacketFlags.Length);
             Array.Clear(_receivedPackets, 0, _receivedPackets.Length);
             Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
             // InitializeBitmap(); // Reinitialize the bitmap
