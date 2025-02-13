@@ -5,11 +5,16 @@
         Background="#333333" Foreground="#FFFFFF"
         Closed="MainWindow_Closed">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="5*"/>
+            <RowDefinition Height="132*"/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="107*" />
-            <ColumnDefinition Width="693*"/>
+            <ColumnDefinition Width="0*" />
+            <ColumnDefinition/>
         </Grid.ColumnDefinitions>
-        <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged" Grid.Column="0" Background="#333333" Grid.ColumnSpan="2">
+        <Ellipse x:Name="GreenLight" Width="20" Height="20" Fill="Green" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="576,0,0,0" Grid.ColumnSpan="2"/>
+        <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged" Grid.Column="0" Background="#333333" Grid.ColumnSpan="2" Grid.RowSpan="2" Margin="0,2,0,0">
             <TabItem Header="RXAA(1560)" Name="Height_1560">
                 <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                     <Grid.ColumnDefinitions>
@@ -17,21 +22,21 @@
                         <ColumnDefinition Width="Auto" MinWidth="200"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" Background="#333333" Grid.Column="0">
-                        <TextBlock Text="UDP Packet Handling For RXAA" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
+                        <TextBlock Text="UDP Packet Handling For RXAA" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF" FontSize="16"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0">
-                            <Button x:Name="ListeningBtn" Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
-                            <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0"/>
+                            <Button x:Name="ListeningBtn" Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF" FontSize="16"/>
+                            <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0" FontSize="16"/>
                         </StackPanel>
-                        <CheckBox x:Name="IsCheckboxCheckedCheckBox" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
-                        <TextBlock x:Name="UdpDataTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
+                        <CheckBox x:Name="IsCheckboxCheckedCheckBox" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF" FontSize="16"/>
+                        <TextBlock x:Name="UdpDataTextBlock" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
                         <!-- TextBlock to display image dimensions -->
                         <Grid Margin="30,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="ImageDimensionsTextBlock" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
-                            <TextBlock x:Name="ThetaAngleTextBlock" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="ImageDimensionsTextBlock" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
+                            <TextBlock x:Name="ThetaAngleTextBlock" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                         </Grid>
                         <Grid Margin="30,10,0,0">
                             <Grid.ColumnDefinitions>
@@ -46,12 +51,12 @@
                             <Canvas x:Name="YAxisGraphCanvas1" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateMaxTextBlock1" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="CoordinateCurrentTextBlock1" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateMaxTextBlock1" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="CoordinateCurrentTextBlock1" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateDataTextBlock1" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="D4SigmaTextBlock1" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateDataTextBlock1" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="D4SigmaTextBlock1" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
                         <Grid Margin="30,10,0,0">
@@ -67,12 +72,12 @@
                             <Canvas x:Name="YAxisGraphCanvas2" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateMaxTextBlock2" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="CoordinateCurrentTextBlock2" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateMaxTextBlock2" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="CoordinateCurrentTextBlock2" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateDataTextBlock2" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="D4SigmaTextBlock2" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateDataTextBlock2" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="D4SigmaTextBlock2" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
                         <Grid Margin="30,10,0,0">
@@ -88,15 +93,15 @@
                             <Canvas x:Name="YAxisGraphCanvas3" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateMaxTextBlock3" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="CoordinateCurrentTextBlock3" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateMaxTextBlock3" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="CoordinateCurrentTextBlock3" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateDataTextBlock3" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="D4SigmaTextBlock3" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateDataTextBlock3" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="D4SigmaTextBlock3" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
-                        <TextBlock x:Name="ClickPositionTextBlock_1560" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
+                        <TextBlock x:Name="ClickPositionTextBlock_1560" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
                     </StackPanel>
                     <DockPanel x:Name="ImagePanel_1560" Grid.Column="1" Margin="0,0,0,0" Background="Gray" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <Viewbox Stretch="Uniform">
@@ -120,21 +125,21 @@
                         <ColumnDefinition Width="Auto" MinWidth="200"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Margin="0" Background="#333333" Grid.Column="0">
-                        <TextBlock Text="UDP Packet Handling For BSAA" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF"/>
+                        <TextBlock Text="UDP Packet Handling For BSAA" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,20,0,0" Foreground="#FFFFFF" FontSize="16"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0">
-                            <Button x:Name="ListeningBtn2" Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF"/>
-                            <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0"/>
+                            <Button x:Name="ListeningBtn2" Content="Start Listening" Click="StartListeningButton_Click" Background="#555555" Foreground="#FFFFFF" FontSize="16"/>
+                            <Button Content="Save Data" Click="SaveDataButton_Click" Background="#555555" Foreground="#FFFFFF" Margin="10,0,0,0" FontSize="16"/>
                         </StackPanel>
-                        <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF"/>
-                        <TextBlock x:Name="UdpDataTextBlock2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
+                        <CheckBox x:Name="IsCheckboxCheckedCheckBox2" Content="Draw Axes" IsChecked="{Binding IsCheckboxChecked, Mode=TwoWay}" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="30, 10, 0, 0" Foreground="#FFFFFF" FontSize="16"/>
+                        <TextBlock x:Name="UdpDataTextBlock2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
                         <!-- TextBlock to display image dimensions -->
                         <Grid Margin="30,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="ImageDimensionsTextBlock2" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
-                            <TextBlock x:Name="ThetaAngleTextBlock2" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF"/>
+                            <TextBlock x:Name="ImageDimensionsTextBlock2" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
+                            <TextBlock x:Name="ThetaAngleTextBlock2" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                         </Grid>
                         <Grid Margin="30,10,0,0">
                             <Grid.ColumnDefinitions>
@@ -149,12 +154,12 @@
                             <Canvas x:Name="YAxisGraphCanvas_520_1" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateMaxTextBlock_520_1" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="CoordinateCurrentTextBlock_520_1" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateMaxTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="CoordinateCurrentTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateDataTextBlock_520_1" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="D4SigmaTextBlock_520_1" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateDataTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="D4SigmaTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
                         <Grid Margin="30,10,0,0">
@@ -170,12 +175,12 @@
                             <Canvas x:Name="YAxisGraphCanvas_520_2" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateMaxTextBlock_520_2" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="CoordinateCurrentTextBlock_520_2" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateMaxTextBlock_520_2" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="CoordinateCurrentTextBlock_520_2" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateDataTextBlock_520_2" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="D4SigmaTextBlock_520_2" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateDataTextBlock_520_2" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="D4SigmaTextBlock_520_2" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
                         <Grid Margin="30,10,0,0">
@@ -191,15 +196,15 @@
                             <Canvas x:Name="YAxisGraphCanvas_520_3" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateMaxTextBlock_520_3" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="CoordinateCurrentTextBlock_520_3" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateMaxTextBlock_520_3" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="CoordinateCurrentTextBlock_520_3" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock x:Name="CoordinateDataTextBlock_520_3" Foreground="#FFFFFF"/>
-                                <TextBlock x:Name="D4SigmaTextBlock_520_3" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="CoordinateDataTextBlock_520_3" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="D4SigmaTextBlock_520_3" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
-                        <TextBlock x:Name="ClickPositionTextBlock_520" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF"/>
+                        <TextBlock x:Name="ClickPositionTextBlock_520" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
                     </StackPanel>
                     <DockPanel x:Name="ImagePanel_520" Grid.Column="1" Margin="0,0,0,0" Background="Gray" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <Viewbox Stretch="Uniform">

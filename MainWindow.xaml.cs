@@ -92,10 +92,10 @@ namespace UsbApp
 
         // Add fields to store the all-time max value coordinates
         private Point[] _allTimeMaxCoordinates = new Point[3];
-        public double[] _allTimeMaxValue = new double[3];
+        public ulong[] _allTimeMaxValue = new ulong[3];
 
         private Point[] _currentFrameMaxCoordinates = new Point[3];
-        private double[] _currentFrameMaxValues = new double[3];
+        private ulong[] _currentFrameMaxValues = new ulong[3];
 
         public List<Point> centroid_for_segmentWindow = new List<Point>();
 
@@ -251,6 +251,14 @@ namespace UsbApp
             else
             {
                 isListening = true;
+                // Reset current frame max values and all-time max values and coordinates
+                for (int i = 0; i < _currentFrameMaxValues.Length; i++)
+                {
+                    _currentFrameMaxValues[i] = 0;
+                    _currentFrameMaxCoordinates[i] = new Point(0, 0);
+                    _allTimeMaxCoordinates[i] = new Point(0, 0);
+                    _allTimeMaxValue[i] = 0;
+                } // for
                 udpClient = new UdpClient(7000); // Use the appropriate port number
                 UdpDataTextBlock.Text = "Listening for UDP packets...";
                 UdpDataTextBlock2.Text = "Listening for UDP packets...";
@@ -605,11 +613,11 @@ namespace UsbApp
                         byte b = _receivedPackets[i][j * 3 + 2];
                         // Combine 3 bytes to form an unsigned int value
                         ulong value = (ulong)((b << 16) | (g << 8) | r);
-                        if (value > maxValue)
+                        if (value > maxValue) // for debug
                         {
                             maxValue = value;
                         } // if
-                        //value *= 2048; // Multiply by 2048
+    
                         //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({i},{j}):{b:X2}-{g:X2}-{r:X2} == {value}\n"));
                         // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
                         //value = (ulong)((((value - 0) * (255 - 0)) / (4194304 - 0) + 0));
@@ -633,6 +641,8 @@ namespace UsbApp
             {
                 _enlargedSegmentWindow.UpdateImage(_bitmap_1560);
             } // if
+
+            FlashGreenLight(); // Flash the green light
         } // UpdateBitmap
 
         public void UpdateBitmapV2()
@@ -712,7 +722,7 @@ namespace UsbApp
                 double sumValue = 0;
 
                 _currentFrameMaxCoordinates[segment] = new Point();
-                _currentFrameMaxValues[segment] = double.MinValue;
+                _currentFrameMaxValues[segment] = 0;
 
                 for (int y = startY; y < endY; y++)
                 {
@@ -723,11 +733,16 @@ namespace UsbApp
                         if (packet != null)
                         {
                             int packetIndex = y * 3;
-                            int value = (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2]; // Combine RGB values into a single integer
+                            byte r = packet[packetIndex];
+                            byte g = packet[packetIndex + 1];
+                            byte b = packet[packetIndex + 2];
+                            // Combine 3 bytes to form an unsigned int value
+                            ulong value = (ulong)((b << 16) | (g << 8) | r);
+
                             if (value == 0)
                             {
                                 value = 1; // Avoid division by zero
-                            }
+                            } // if
                             // Adjust x and y to have (0,0) at the center of the segment
                             double adjustedX = x - (TotalLines / 2.0);
                             double adjustedY = y - (startY + segmentHeight / 2.0);
@@ -774,18 +789,18 @@ namespace UsbApp
                     {
                         case 0:
                             D4SigmaTextBlock1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
-                            CoordinateMaxTextBlock1.Text = $"All-time Max: {_allTimeMaxValue[segment]:F2}";
-                            CoordinateCurrentTextBlock1.Text = $"Current Max: {_currentFrameMaxValues[segment]:F2}";
+                            CoordinateMaxTextBlock1.Text = $"All-time Max: {_allTimeMaxValue[segment]}";
+                            CoordinateCurrentTextBlock1.Text = $"Current Max: {_currentFrameMaxValues[segment]}";
                             break;
                         case 1:
                             D4SigmaTextBlock2.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
-                            CoordinateMaxTextBlock2.Text = $"All-time Max: {_allTimeMaxValue[segment]:F2}";
-                            CoordinateCurrentTextBlock2.Text = $"Current Max: {_currentFrameMaxValues[segment]:F2}";
+                            CoordinateMaxTextBlock2.Text = $"All-time Max: {_allTimeMaxValue[segment]}";
+                            CoordinateCurrentTextBlock2.Text = $"Current Max: {_currentFrameMaxValues[segment]}";
                             break;
                         case 2:
                             D4SigmaTextBlock3.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
-                            CoordinateMaxTextBlock3.Text = $"All-time Max: {_allTimeMaxValue[segment]:F2}";
-                            CoordinateCurrentTextBlock3.Text = $"Current Max: {_currentFrameMaxValues[segment]:F2}";
+                            CoordinateMaxTextBlock3.Text = $"All-time Max: {_allTimeMaxValue[segment]}";
+                            CoordinateCurrentTextBlock3.Text = $"Current Max: {_currentFrameMaxValues[segment]}";
                             break;
                     }
                 });
@@ -899,7 +914,12 @@ namespace UsbApp
                     if (packet != null)
                     {
                         int packetIndex = y * 3;
-                        int value = (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2]; // Combine RGB values into a single integer
+                        byte r = packet[packetIndex];
+                        byte g = packet[packetIndex + 1];
+                        byte b = packet[packetIndex + 2];
+                        // Combine 3 bytes to form an unsigned int value
+                        ulong value = (ulong)((b << 16) | (g << 8) | r);
+                        
                         if (value == 0)
                         {
                             value = 1; // Avoid division by zero
@@ -918,7 +938,6 @@ namespace UsbApp
             d4SigmaX = 4 * Math.Sqrt(sumXX / sumValue);
             d4SigmaY = 4 * Math.Sqrt(sumYY / sumValue);
         } // CalculateD4Sigma
-
 
         public void DrawAxesAndCentroids(List<Point> centroids, int topBottomSegmentHeight, int middleSegmentHeight, int dontCareHeight)
         {
@@ -1303,5 +1322,11 @@ namespace UsbApp
             else
                 _enlargedSegmentWindow.UpdateImage(_bitmap_520);
         } // ShowEnlargedSegment
+        private async void FlashGreenLight()
+        {
+            GreenLight.Visibility = Visibility.Visible;
+            await Task.Delay(700); // Flash duration
+            GreenLight.Visibility = Visibility.Collapsed;
+        }
     } // class MainWindow
 } // namespace UsbApp
