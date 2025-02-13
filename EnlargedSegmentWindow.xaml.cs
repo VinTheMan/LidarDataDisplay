@@ -18,7 +18,13 @@ namespace UsbApp
         {
             // Handle the window closed event
             if (((MainWindow)Application.Current.MainWindow) != null)
-                ((MainWindow)Application.Current.MainWindow)._enlargedSegmentWindow = null;
+            {
+                var mainWindow = (MainWindow)Application.Current.MainWindow;
+                if (mainWindow._enlargedSegmentWindows.ContainsKey(segmentIndex))
+                {
+                    mainWindow._enlargedSegmentWindows.Remove(segmentIndex);
+                } // if
+            } // if
         } // EnlargedSegmentWindow_Closed
 
         public void UpdateImage(WriteableBitmap wholeBitmap)

@@ -62,6 +62,9 @@ namespace UsbApp
         public int CanvasHeight_1560 => AmbientDataSize_1560;
         public int CanvasHeight_520 => AmbientDataSize_520;
 
+        // Dictionary to store the EnlargedSegmentWindow instances
+        public Dictionary<int, EnlargedSegmentWindow> _enlargedSegmentWindows = new Dictionary<int, EnlargedSegmentWindow>();
+
         private int _currentTab;
         public int CurrentTab
         {
@@ -617,7 +620,7 @@ namespace UsbApp
                         {
                             maxValue = value;
                         } // if
-    
+
                         //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({i},{j}):{b:X2}-{g:X2}-{r:X2} == {value}\n"));
                         // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
                         //value = (ulong)((((value - 0) * (255 - 0)) / (4194304 - 0) + 0));
@@ -637,10 +640,11 @@ namespace UsbApp
             CalculateCentroids();
             DrawGraphs();
 
-            if (_enlargedSegmentWindow != null)
+            // Update each EnlargedSegmentWindow
+            foreach (var window in _enlargedSegmentWindows.Values)
             {
-                _enlargedSegmentWindow.UpdateImage(_bitmap_1560);
-            } // if
+                window.UpdateImage(_bitmap_1560);
+            } // foreach
 
             FlashGreenLight(); // Flash the green light
         } // UpdateBitmap
@@ -919,7 +923,7 @@ namespace UsbApp
                         byte b = packet[packetIndex + 2];
                         // Combine 3 bytes to form an unsigned int value
                         ulong value = (ulong)((b << 16) | (g << 8) | r);
-                        
+
                         if (value == 0)
                         {
                             value = 1; // Avoid division by zero
@@ -1183,7 +1187,6 @@ namespace UsbApp
         } // DrawYAxisGraph
 
         // --------------------------------- Mouse Events -------------------------------------
-        public EnlargedSegmentWindow _enlargedSegmentWindow;
         private void ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             Point clickPosition = e.GetPosition(ImageCanvas_1560);
@@ -1200,15 +1203,15 @@ namespace UsbApp
             if (segmentIndex == 1)
             {
                 segmentIndex = 1;
-            }
+            } // if
             else if (clickPosition.Y > segmentHeight + dontCareHeight)
             {
                 segmentIndex = 2;
-            }
+            } // elese if
             else
             {
                 segmentIndex = 0;
-            }
+            } // else
 
             ShowEnlargedSegment(segmentIndex);
         } // ImageCanvas_1560_MouseLeftButtonDown
@@ -1309,19 +1312,23 @@ namespace UsbApp
 
         private void ShowEnlargedSegment(int segmentIndex)
         {
-            if (_enlargedSegmentWindow == null)
+            if (!_enlargedSegmentWindows.ContainsKey(segmentIndex))
             {
-                _enlargedSegmentWindow = new EnlargedSegmentWindow();
-                _enlargedSegmentWindow.Show();
-            } // if
+                var enlargedSegmentWindow = new EnlargedSegmentWindow();
+                enlargedSegmentWindow.Closed += (sender, e) => _enlargedSegmentWindows.Remove(segmentIndex);
+                _enlargedSegmentWindows[segmentIndex] = enlargedSegmentWindow;
+                enlargedSegmentWindow.Show();
+            }
 
-            _enlargedSegmentWindow.Title = $"Segment {segmentIndex + 1}";
-            _enlargedSegmentWindow.segmentIndex = segmentIndex;
+            var window = _enlargedSegmentWindows[segmentIndex];
+            window.Title = $"Segment {segmentIndex + 1}";
+            window.segmentIndex = segmentIndex;
             if (CurrentTab == 1560)
-                _enlargedSegmentWindow.UpdateImage(_bitmap_1560);
+                window.UpdateImage(_bitmap_1560);
             else
-                _enlargedSegmentWindow.UpdateImage(_bitmap_520);
+                window.UpdateImage(_bitmap_520);
         } // ShowEnlargedSegment
+
         private async void FlashGreenLight()
         {
             GreenLight.Visibility = Visibility.Visible;
