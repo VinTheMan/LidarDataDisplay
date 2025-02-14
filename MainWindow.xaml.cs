@@ -1237,11 +1237,11 @@ namespace UsbApp
 
             if (CurrentTab == 1560)
             {
-                HoverPositionTextBlock_1560.Text = $"Hover Position: ({adjustedX:F2}, {adjustedY:F2})";
+                HoverPositionTextBlock_1560.Text = $"Hover Position: ({adjustedX:F0}, {adjustedY:F0})";
             } // if
             else
             {
-                HoverPositionTextBlock_520.Text = $"Hover Position: ({adjustedX:F2}, {adjustedY:F2})";
+                HoverPositionTextBlock_520.Text = $"Hover Position: ({adjustedX:F0}, {adjustedY:F0})";
             } // else
 
             DrawCross(position);
