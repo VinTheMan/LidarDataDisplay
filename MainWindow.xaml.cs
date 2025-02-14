@@ -1185,47 +1185,47 @@ namespace UsbApp
         } // DrawYAxisGraph
 
         // --------------------------------- Mouse Events -------------------------------------
-        //private void ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        //{
-        //    Point clickPosition = e.GetPosition(ImageCanvas_1560);
-        //    double centerX = ImageCanvas_1560.ActualWidth / 2;
-        //    double centerY = ImageCanvas_1560.ActualHeight / 2;
-        //    double adjustedX = clickPosition.X - centerX;
-        //    double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
-        //    ClickPositionTextBlock_1560.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
+        private void ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Point clickPosition = e.GetPosition(ImageCanvas_1560);
+            double centerX = ImageCanvas_1560.ActualWidth / 2;
+            double centerY = ImageCanvas_1560.ActualHeight / 2;
+            double adjustedX = clickPosition.X - centerX;
+            double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
+            //ClickPositionTextBlock_1560.Text = $"Click Position: ({adjustedX:F0}, {adjustedY:F0})";
 
-        //    int segmentHeight = 312;
-        //    int dontCareHeight = 312;
+            int segmentHeight = 312;
+            int dontCareHeight = 312;
 
-        //    int segmentIndex = (int)(clickPosition.Y / (segmentHeight + dontCareHeight));
-        //    if (segmentIndex == 1)
-        //    {
-        //        segmentIndex = 1;
-        //    } // if
-        //    else if (clickPosition.Y > segmentHeight + dontCareHeight)
-        //    {
-        //        segmentIndex = 2;
-        //    } // elese if
-        //    else
-        //    {
-        //        segmentIndex = 0;
-        //    } // else
+            int segmentIndex = (int)(clickPosition.Y / (segmentHeight + dontCareHeight));
+            if (segmentIndex == 1)
+            {
+                segmentIndex = 1;
+            } // if
+            else if (clickPosition.Y > segmentHeight + dontCareHeight)
+            {
+                segmentIndex = 2;
+            } // elese if
+            else
+            {
+                segmentIndex = 0;
+            } // else
 
-        //    ShowEnlargedSegment(segmentIndex);
-        //} // ImageCanvas_1560_MouseLeftButtonDown
+            ShowEnlargedSegment(segmentIndex);
+        } // ImageCanvas_1560_MouseLeftButtonDown
 
-        //private void ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        //{
-        //    // 520 ver does not have segments, we enlarge the whole image
-        //    Point clickPosition = e.GetPosition(ImageCanvas_520);
-        //    double centerX = ImageCanvas_520.ActualWidth / 2;
-        //    double centerY = ImageCanvas_520.ActualHeight / 2;
-        //    double adjustedX = clickPosition.X - centerX;
-        //    double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
-        //    ClickPositionTextBlock_520.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
+        private void ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 520 ver does not have segments, we enlarge the whole image
+            Point clickPosition = e.GetPosition(ImageCanvas_520);
+            double centerX = ImageCanvas_520.ActualWidth / 2;
+            double centerY = ImageCanvas_520.ActualHeight / 2;
+            double adjustedX = clickPosition.X - centerX;
+            double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
+            //ClickPositionTextBlock_520.Text = $"Click Position: ({adjustedX:F0}, {adjustedY:F0})";
 
-        //    ShowEnlargedSegment(0);
-        //} // ImageCanvas_520_MouseLeftButtonDown
+            ShowEnlargedSegment(0);
+        } // ImageCanvas_520_MouseLeftButtonDown
 
         private void ImageCanvas_MouseMove(object sender, MouseEventArgs e)
         {
