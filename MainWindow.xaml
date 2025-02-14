@@ -101,12 +101,13 @@
                                 <TextBlock x:Name="D4SigmaTextBlock3" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
-                        <TextBlock x:Name="ClickPositionTextBlock_1560" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
+                        <TextBlock x:Name="HoverPositionTextBlock_1560" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
                     </StackPanel>
                     <DockPanel x:Name="ImagePanel_1560" Grid.Column="1" Margin="0,0,0,0" Background="Gray" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <Viewbox Stretch="Uniform">
+                            <!-- MouseLeftButtonDown="ImageCanvas_1560_MouseLeftButtonDown" -->
                             <Canvas x:Name="ImageCanvas_1560" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight_1560}" Background="Black"
-                                    MouseLeftButtonDown="ImageCanvas_1560_MouseLeftButtonDown" MouseMove="ImageCanvas_MouseMove" MouseLeave="ImageCanvas_MouseLeave">
+                                     MouseMove="ImageCanvas_MouseMove" MouseLeave="ImageCanvas_MouseLeave">
                                 <Canvas.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="ImageScaleTransform_1560" />
@@ -204,12 +205,13 @@
                                 <TextBlock x:Name="D4SigmaTextBlock_520_3" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                         </Grid>
-                        <TextBlock x:Name="ClickPositionTextBlock_520" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
+                        <TextBlock x:Name="HoverPositionTextBlock_520" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16"/>
                     </StackPanel>
                     <DockPanel x:Name="ImagePanel_520" Grid.Column="1" Margin="0,0,0,0" Background="Gray" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                         <Viewbox Stretch="Uniform">
+                            <!-- MouseLeftButtonDown="ImageCanvas_520_MouseLeftButtonDown" -->
                             <Canvas x:Name="ImageCanvas_520" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight_520}" Background="Black"
-                                    MouseLeftButtonDown="ImageCanvas_520_MouseLeftButtonDown" MouseMove="ImageCanvas_MouseMove" MouseLeave="ImageCanvas_MouseLeave">
+                                     MouseMove="ImageCanvas_MouseMove" MouseLeave="ImageCanvas_MouseLeave">
                                 <Canvas.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="ImageScaleTransform_520" />

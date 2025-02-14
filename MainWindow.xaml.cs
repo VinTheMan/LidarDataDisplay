@@ -570,7 +570,6 @@ namespace UsbApp
 
         public ushort CalculateChecksum(byte[] data, int length)
         {
-            return 0x1234; // for now
             ushort checksum = 0;
             for (int i = 0; i < length; i++)
             {
@@ -581,7 +580,6 @@ namespace UsbApp
 
         private ushort CalculateChecksum(byte[] data, int offset, int length)
         {
-            return 0x1234; // for now
             ushort checksum = 0;
             for (int i = offset; i < offset + length; i++)
             {
@@ -1187,57 +1185,80 @@ namespace UsbApp
         } // DrawYAxisGraph
 
         // --------------------------------- Mouse Events -------------------------------------
-        private void ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            Point clickPosition = e.GetPosition(ImageCanvas_1560);
-            double centerX = ImageCanvas_1560.ActualWidth / 2;
-            double centerY = ImageCanvas_1560.ActualHeight / 2;
-            double adjustedX = clickPosition.X - centerX;
-            double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
-            ClickPositionTextBlock_1560.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
+        //private void ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        //{
+        //    Point clickPosition = e.GetPosition(ImageCanvas_1560);
+        //    double centerX = ImageCanvas_1560.ActualWidth / 2;
+        //    double centerY = ImageCanvas_1560.ActualHeight / 2;
+        //    double adjustedX = clickPosition.X - centerX;
+        //    double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
+        //    ClickPositionTextBlock_1560.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
 
-            int segmentHeight = 312;
-            int dontCareHeight = 312;
+        //    int segmentHeight = 312;
+        //    int dontCareHeight = 312;
 
-            int segmentIndex = (int)(clickPosition.Y / (segmentHeight + dontCareHeight));
-            if (segmentIndex == 1)
-            {
-                segmentIndex = 1;
-            } // if
-            else if (clickPosition.Y > segmentHeight + dontCareHeight)
-            {
-                segmentIndex = 2;
-            } // elese if
-            else
-            {
-                segmentIndex = 0;
-            } // else
+        //    int segmentIndex = (int)(clickPosition.Y / (segmentHeight + dontCareHeight));
+        //    if (segmentIndex == 1)
+        //    {
+        //        segmentIndex = 1;
+        //    } // if
+        //    else if (clickPosition.Y > segmentHeight + dontCareHeight)
+        //    {
+        //        segmentIndex = 2;
+        //    } // elese if
+        //    else
+        //    {
+        //        segmentIndex = 0;
+        //    } // else
 
-            ShowEnlargedSegment(segmentIndex);
-        } // ImageCanvas_1560_MouseLeftButtonDown
+        //    ShowEnlargedSegment(segmentIndex);
+        //} // ImageCanvas_1560_MouseLeftButtonDown
 
-        private void ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            // 520 ver does not have segments, we enlarge the whole image
-            Point clickPosition = e.GetPosition(ImageCanvas_520);
-            double centerX = ImageCanvas_520.ActualWidth / 2;
-            double centerY = ImageCanvas_520.ActualHeight / 2;
-            double adjustedX = clickPosition.X - centerX;
-            double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
-            ClickPositionTextBlock_520.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
+        //private void ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        //{
+        //    // 520 ver does not have segments, we enlarge the whole image
+        //    Point clickPosition = e.GetPosition(ImageCanvas_520);
+        //    double centerX = ImageCanvas_520.ActualWidth / 2;
+        //    double centerY = ImageCanvas_520.ActualHeight / 2;
+        //    double adjustedX = clickPosition.X - centerX;
+        //    double adjustedY = centerY - clickPosition.Y; // Make y negative when clicking the lower half
+        //    ClickPositionTextBlock_520.Text = $"Click Position: ({adjustedX:F2}, {adjustedY:F2})";
 
-            ShowEnlargedSegment(0);
-        } // ImageCanvas_520_MouseLeftButtonDown
+        //    ShowEnlargedSegment(0);
+        //} // ImageCanvas_520_MouseLeftButtonDown
 
         private void ImageCanvas_MouseMove(object sender, MouseEventArgs e)
         {
             Point position = e.GetPosition((IInputElement)sender);
+            double centerX = ((Canvas)sender).ActualWidth / 2;
+            double centerY = ((Canvas)sender).ActualHeight / 2;
+            double adjustedX = position.X - centerX;
+            double adjustedY = centerY - position.Y; // Make y negative when hovering over the lower half
+
+            if (CurrentTab == 1560)
+            {
+                HoverPositionTextBlock_1560.Text = $"Hover Position: ({adjustedX:F2}, {adjustedY:F2})";
+            } // if
+            else
+            {
+                HoverPositionTextBlock_520.Text = $"Hover Position: ({adjustedX:F2}, {adjustedY:F2})";
+            } // else
+
             DrawCross(position);
         } // ImageCanvas_MouseMove
 
         private void ImageCanvas_MouseLeave(object sender, MouseEventArgs e)
         {
             ClearCross();
+
+            if (CurrentTab == 1560)
+            {
+                HoverPositionTextBlock_1560.Text = $"Hover Position: (0, 0)";
+            } // if
+            else
+            {
+                HoverPositionTextBlock_520.Text = $"Hover Position: (0, 0)";
+            } // else
         } // ImageCanvas_MouseLeave
 
         private void DrawCross(Point position)
