@@ -17,6 +17,7 @@ using System.Windows.Documents;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
+using static System.Windows.Forms.AxHost;
 
 namespace UsbApp
 {
@@ -93,6 +94,21 @@ namespace UsbApp
             } // set
         } // IsCheckboxChecked
 
+        private ulong _oldMax; // shared
+        public ulong OldMax // shared
+        {
+            get => _oldMax;
+            set
+            {
+                if (_oldMax != value)
+                {
+                    _oldMax = value;
+                    OnPropertyChanged();
+                } // if
+            } // set
+        } // OldMax
+
+
         // Add fields to store the all-time max value coordinates
         private Point[] _allTimeMaxCoordinates = new Point[3];
         public ulong[] _allTimeMaxValue = new ulong[3];
@@ -106,6 +122,7 @@ namespace UsbApp
         {
             InitializeComponent();
             DataContext = this;
+            OldMax = 1;
             // Initialize the all-time max coordinates
             for (int i = 0; i < _allTimeMaxCoordinates.Length; i++)
             {
@@ -156,11 +173,15 @@ namespace UsbApp
         } // MainTabControl_SelectionChanged
 
 
-        public void SaveDataButton_Click(object sender, RoutedEventArgs e)
+        public void SaveImageButton_Click(object sender, RoutedEventArgs e)
         {
             SaveImage();
+        } // SaveImageButton_Click
+
+        public void SaveCsvButton_Click(object sender, RoutedEventArgs e)
+        {
             SaveDataToCsv();
-        } // SaveDataButton_Click
+        } // SaveCsvButton_Click
 
         public void SaveImage()
         {
@@ -227,7 +248,7 @@ namespace UsbApp
                                 } // if
                                 else
                                 {
-                                    ushort value = (ushort)(_receivedPackets_save[col][row * 2] << 8 | _receivedPackets[col][row * 2 + 1]);
+                                    ushort value = (ushort)(_receivedPackets_save[col][row * 2 + 1] << 8 | _receivedPackets_save[col][row * 2]);
                                     rowData.Add($"0x{value:X4}");
                                 } // else
                             } // if
@@ -325,7 +346,7 @@ namespace UsbApp
                 return;
             } // if
 
-            if (CurrentTab == 1560) // RXAA
+            if (CurrentTab == 1560) // 1560
             {
                 byte udpNumber = data[0]; // 0 ~ 3 // 1 byte
                 int psn = data[1]; // 0 ~ 104 // 1 byte
@@ -336,8 +357,7 @@ namespace UsbApp
                     // Check if the packet with the same udpNumber and psn has already been received
                     if (_receivedPacketsDict.ContainsKey(psn) && (_receivedPacketFlagsDict[psn] & (1 << udpNumber)) != 0)
                     {
-                        // Parse the combined data and update the bitmap with available lines
-                        byte[] combinedData = new byte[(ValidDataSize + 1) * TotalLines];
+                        // update the bitmap with available lines
                         for (int i = 0; i < TotalLines; i++)
                         {
                             if (_receivedPacketFlagsDict.ContainsKey(i))
@@ -346,22 +366,22 @@ namespace UsbApp
                                 {
                                     if (_receivedPacketsDict[i][j] != null)
                                     {
+                                        _receivedPacketFlags[i] = true;
+                                        byte[] wholeVerticalLine = new byte[AmbientDataSize_1560 * 3];
+
                                         int combinedDataOffset = j * (UdpPacketSize - 2);
                                         // Store the received packet
-                                        _receivedPackets[i] = new byte[AmbientDataSize_1560 * 3];
-                                        _receivedPacketFlags[i] = true;
                                         if (j == 3)
                                         {
-                                            Array.Copy(_receivedPacketsDict[i][j], 0, _receivedPackets[i], combinedDataOffset, 1086);
-
+                                            Array.Copy(_receivedPacketsDict[i][j], 0, wholeVerticalLine, combinedDataOffset, 1086);
                                         } // if
                                         else
                                         {
-                                            Array.Copy(_receivedPacketsDict[i][j], 0, _receivedPackets[i], combinedDataOffset, UdpPacketSize - 2);
+                                            Array.Copy(_receivedPacketsDict[i][j], 0, wholeVerticalLine, combinedDataOffset, _receivedPacketsDict[i][j].Length);
                                         } // else
 
-                                        // print the data for debug
-                                        //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"_receivedPacketsDict[{i}][{j}]: {combinedData[combinedDataOffset]}\n"));
+                                        // Paste wholeVerticalLine to _receivedPackets[i]
+                                        _receivedPackets[i] = wholeVerticalLine.ToArray();
                                     } // if
                                 } // for
                             } // if
@@ -389,8 +409,6 @@ namespace UsbApp
                     _receivedPacketsDict[psn][udpNumber] = new byte[UdpPacketSize - 2];
                     Array.Copy(data, 2, _receivedPacketsDict[psn][udpNumber], 0, UdpPacketSize - 2);
                     _receivedPacketFlagsDict[psn] |= (1 << udpNumber);
-                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"test: {BitConverter.ToString(_receivedPacketsDict[psn][udpNumber])}, psn: {psn}\n"));
-                    //return;
 
                     // Check if all 4 UDP packets for this PSN have been received
                     if (_receivedPacketFlagsDict[psn] == 0x0F)
@@ -452,15 +470,27 @@ namespace UsbApp
                     } // if
                 } // lock
             } // if
-            else // BSAA
+            else // 520
             {
                 int psn = data[0]; // 0 ~ 104 // 1 byte
-                                   // Print the data for debug
-                                   // Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"psn: {psn}\n"));
-                                   // return;
+                // Print the data for debug
+                //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"psn: {psn}\n"));
+                //return;
 
                 lock (_lock)
                 {
+                    // Check if the packet with the same udpNumber and psn has already been received
+                    if (_receivedPacketFlags[psn] == true)
+                    {
+                        // update the bitmap with available lines
+                        Dispatcher.Invoke(() =>
+                        {
+                            UpdateBitmapV2();
+                            ResetData();
+                        });
+
+                    } // if
+
                     // Store the received packet
                     _receivedPackets[psn] = new byte[UdpPacketSize - 7];
                     Array.Copy(data, 1, _receivedPackets[psn], 0, UdpPacketSize - 7);
@@ -474,8 +504,8 @@ namespace UsbApp
                         {
                             allPacketsReceived = false;
                             break;
-                        }
-                    }
+                        } // if
+                    } // for
 
                     if (allPacketsReceived)
                     {
@@ -486,10 +516,10 @@ namespace UsbApp
                             var debugMessages = new StringBuilder();
                             for (int i = 0; i < TotalLines; i++)
                             {
-                                debugMessages.AppendLine($"_receivedPackets[{i}]: {BitConverter.ToString(_receivedPackets[i])}");
+                                //debugMessages.AppendLine($"_receivedPackets[{i}]: {BitConverter.ToString(_receivedPackets[i])}");
                             } // for
 
-                            DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
+                            //DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
                             UpdateBitmapV2();
                         });
 
@@ -499,74 +529,6 @@ namespace UsbApp
                 } // lock
             } // else
         } // ParseUdpPacket
-
-        private void ParseCombinedData(byte[] combinedData)
-        {
-            var debugMessages = new StringBuilder();
-            var invalidDataMessages = new List<string>();
-            int AmbientDataSize = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
-            int ValidDataSize = (CurrentTab == 1560) ? ValidDataSize_1560 : ValidDataSize_520;
-            for (int i = 0; i < TotalLines; i++)
-            {
-                int offset = i * (ValidDataSize + 1);
-                //ushort header = (ushort)(combinedData[offset] | (combinedData[offset + 1] << 8)); // 2 bytes
-                byte psn = combinedData[offset]; // 0 ~ 104 // 1 byte
-                //ushort packSize = (ushort)(combinedData[offset + 3] | (combinedData[offset + 4] << 8)); // 2 bytes
-                //byte[] ambientData = new byte[AmbientDataSize * 3]; // 4680 bytes
-                byte[] ambientData = (CurrentTab == 1560) ? new byte[AmbientDataSize * 3] : new byte[AmbientDataSize * 2]; //4680 / 1040 bytes
-                //Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 3);
-                if (CurrentTab == 1560)
-                    Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 3);
-                else
-                    Array.Copy(combinedData, offset + 1, ambientData, 0, AmbientDataSize * 2);
-                //ushort checksum = (ushort)(combinedData[offset + 5 + (AmbientDataSize * 3)] | (combinedData[offset + 6 + (AmbientDataSize * 3)] << 8)); // 2 bytes
-                bool hasInvalidData = false;
-
-                // Collect debug messages
-                debugMessages.AppendLine("----------------------------------------------------------------------");
-                //debugMessages.AppendLine($"-------- Header: 0x{header:X4}");
-                debugMessages.AppendLine($"-------- PSN: 0x{psn:X2}");
-                //debugMessages.AppendLine($"-------- Packet Size: 0x{packSize:X4}");
-                //debugMessages.AppendLine($"-------- Checksum: 0x{checksum:X4}");
-
-                // Verify the packet size
-                //if (packSize != ValidDataSize)
-                //{
-                //    invalidDataMessages.Add($"Invalid packet size field: 0x{packSize:X4}");
-                //    hasInvalidData = true;
-                //} // if
-
-                // Calculate and verify the checksum
-                //ushort calculatedChecksum = CalculateChecksum(combinedData, offset, ValidDataSize - 2);
-                //if (checksum != calculatedChecksum)
-                //{
-                //    invalidDataMessages.Add($"Checksum mismatch: expected 0x{calculatedChecksum:X4}, got 0x{checksum:X4}");
-                //    hasInvalidData = true;
-                //} // if
-
-                debugMessages.AppendLine("----------------------------------------------------------------------");
-
-                // Store the packet data
-                if (psn < TotalLines)
-                {
-                    _receivedPackets[psn] = ambientData;
-                    _receivedPacketFlags[psn] = true;
-                } // if
-            } // for
-
-            // Update the UI in a single Dispatcher.Invoke call
-            Dispatcher.Invoke(() =>
-            {
-                //DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
-                foreach (var message in invalidDataMessages)
-                {
-                    //DebugWindow.Instance.DataTextBox.AppendText(message + "\n");
-                } // foreach
-                // print out the combinedData for debug
-                //DebugWindow.Instance.DataTextBox.AppendText($"Combined Data: {combinedData[1]}\n");
-                UpdateBitmap();
-            });
-        } // ParseCombinedData
 
         public ushort CalculateChecksum(byte[] data, int length)
         {
@@ -619,11 +581,10 @@ namespace UsbApp
                             maxValue = value;
                         } // if
 
-                        //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({i},{j}):{b:X2}-{g:X2}-{r:X2} == {value}\n"));
-                        // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
-                        //value = (ulong)((((value - 0) * (255 - 0)) / (4194304 - 0) + 0));
-                        value = (ulong)((((value - 0) * (255 - 0)) / (2048 - 0) + 0));
+                        //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({i},{j}):{b:X2}-{g:X2}-{r:X2} == {maxValue}\n"));
 
+                        // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
+                        value = (ulong)((((value - 0) * (255 - 0)) / ((OldMax) - 0) + 0));
                         value = Math.Min(value, 255); // Ensure value does not exceed 255
                         grayData[j * TotalLines + i] = Convert.ToByte(value);
                         //grayData[j * TotalLines + i] = (byte)((r + g + b) / 3);
@@ -631,7 +592,7 @@ namespace UsbApp
                 } // if
             } // for
 
-            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({maxValue})\n"));
+            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax})\n")); // test
 
             _bitmap_1560.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
 
@@ -658,15 +619,33 @@ namespace UsbApp
                     for (int j = 0; j < AmbientDataSize; j++)
                     {
                         // Combine two bytes to form a 16-bit value
-                        ushort value = (ushort)(_receivedPackets[i][j * 2] << 8 | _receivedPackets[i][j * 2 + 1]);
-                        // What should we do with the value????
-                        // Convert the 16-bit value to grayscale
-                        grayData[j * TotalLines + i] = (byte)(value >> 8);
-                    }
-                }
-            } // 
+                        ulong value = (ulong)(_receivedPackets[i][j * 2 + 1] << 8 | _receivedPackets[i][j * 2]);
+                        if (value > maxValue) // for debug
+                        {
+                            maxValue = value;
+                        } // if
 
+                        // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
+                        value = (ulong)((((value - 0) * (255 - 0)) / ((OldMax) - 0) + 0));
+                        value = Math.Min(value, 255); // Ensure value does not exceed 255
+                        grayData[j * TotalLines + i] = Convert.ToByte(value);
+                    } // for
+                } // if
+            } // for
+
+            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax}, current frame max: {maxValue})\n")); // test
             _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
+
+            CalculateCentroidsOneSet();
+            DrawGraphsOneSet();
+
+            // Update each EnlargedSegmentWindow
+            foreach (var window in _enlargedSegmentWindows.Values)
+            {
+                window.UpdateImage(_bitmap_520);
+            } // foreach
+
+            FlashGreenLight(); // Flash the green light
         } // UpdateBitmapV2
 
         protected override void OnClosed(EventArgs e)
@@ -710,14 +689,14 @@ namespace UsbApp
                     startY = topBottomSegmentHeight + dontCareHeight;
                     endY = startY + middleSegmentHeight;
                     segmentHeight = middleSegmentHeight;
-                }
+                } // if
                 else
                 {
                     // Top and bottom segments
                     startY = segment * (topBottomSegmentHeight + dontCareHeight);
                     endY = startY + topBottomSegmentHeight;
                     segmentHeight = topBottomSegmentHeight;
-                }
+                } // else
 
                 double sumX = 0;
                 double sumY = 0;
@@ -791,18 +770,18 @@ namespace UsbApp
                     {
                         case 0:
                             D4SigmaTextBlock1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
-                            CoordinateMaxTextBlock1.Text = $"All-time Max: {_allTimeMaxValue[segment]}";
-                            CoordinateCurrentTextBlock1.Text = $"Current Max: {_currentFrameMaxValues[segment]}";
+                            CoordinateMaxTextBlock1.Text = $"Max Peak Intensity: {_allTimeMaxValue[segment]}";
+                            CoordinateCurrentTextBlock1.Text = $"Current Peak Intensity: {_currentFrameMaxValues[segment]}";
                             break;
                         case 1:
                             D4SigmaTextBlock2.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
-                            CoordinateMaxTextBlock2.Text = $"All-time Max: {_allTimeMaxValue[segment]}";
-                            CoordinateCurrentTextBlock2.Text = $"Current Max: {_currentFrameMaxValues[segment]}";
+                            CoordinateMaxTextBlock2.Text = $"Max Peak Intensity: {_allTimeMaxValue[segment]}";
+                            CoordinateCurrentTextBlock2.Text = $"Current Peak Intensity: {_currentFrameMaxValues[segment]}";
                             break;
                         case 2:
                             D4SigmaTextBlock3.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
-                            CoordinateMaxTextBlock3.Text = $"All-time Max: {_allTimeMaxValue[segment]}";
-                            CoordinateCurrentTextBlock3.Text = $"Current Max: {_currentFrameMaxValues[segment]}";
+                            CoordinateMaxTextBlock3.Text = $"Max Peak Intensity: {_allTimeMaxValue[segment]}";
+                            CoordinateCurrentTextBlock3.Text = $"Current Peak Intensity: {_currentFrameMaxValues[segment]}";
                             break;
                     }
                 });
@@ -824,7 +803,7 @@ namespace UsbApp
             string centroidPositions1 = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})";
             string centroidPositions2 = $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})";
             string centroidPositions3 = $"Centroid C ({centroids[2].X:F2}, {centroids[2].Y:F2})";
-            string thetaAngle = $"θ = {theta:F2}°";
+            string thetaAngle = $"Tilt Angle θ = {theta:F2}°";
 
             // Update the CoordinateDataTextBlock with the formatted text
             Dispatcher.Invoke(() =>
@@ -848,6 +827,8 @@ namespace UsbApp
             double sumX = 0;
             double sumY = 0;
             double sumValue = 0;
+            var centroids = new List<Point>();
+            var originalCentroids = new List<Point>();
 
             for (int y = 0; y < imageHeight; y++)
             {
@@ -857,14 +838,12 @@ namespace UsbApp
                     byte[] packet = _receivedPackets[x];
                     if (packet != null)
                     {
-                        int packetIndex = (CurrentTab == 1560) ? y * 3 : y * 2;
-                        int value = (CurrentTab == 1560)
-                            ? (packet[packetIndex] << 16) | (packet[packetIndex + 1] << 8) | packet[packetIndex + 2]
-                            : (packet[packetIndex] << 8) | packet[packetIndex + 1];
+                        int packetIndex = y * 2;
+                        ulong value = (ulong)((packet[packetIndex + 1] << 8) | packet[packetIndex]);
                         if (value == 0)
                         {
                             value = 1; // Avoid division by zero
-                        }
+                        } // if
                         // Adjust x and y to have (0,0) at the center of the image
                         double adjustedX = x - (TotalLines / 2.0);
                         double adjustedY = y - (imageHeight / 2.0);
@@ -872,9 +851,16 @@ namespace UsbApp
                         sumX += adjustedX * value;
                         sumY += adjustedY * value;
                         sumValue += value;
-                    }
-                }
-            }
+
+                        // Update the current frame max value coordinate
+                        if (value > _currentFrameMaxValues[0])
+                        {
+                            _currentFrameMaxValues[0] = value;
+                            _currentFrameMaxCoordinates[0] = new Point(x, y);
+                        } // if
+                    } // if
+                } // for
+            } // for
 
             double centroidX = sumX / sumValue;
             double centroidY = sumY / sumValue;
@@ -888,13 +874,49 @@ namespace UsbApp
                 DebugWindow.Instance.DataTextBox.AppendText($"Centroid of the whole image: ({centroid.X}, {centroid.Y})\n");
             });
 
+            // Store the original centroid coordinates
+            originalCentroids.Add(new Point(centroidX + (TotalLines / 2.0), centroidY + (imageHeight / 2.0)));
+
+            // Adjust coordinates to have (0,0) at the center of the segment
+            centroids.Add(new Point(centroidX, centroidY));
+
+            // Calculate D4-sigma for the segment
+            double d4SigmaX, d4SigmaY;
+            CalculateD4SigmaOneSet(centroidX, centroidY, out d4SigmaX, out d4SigmaY);
+
+            // Update the all-time max value coordinate if necessary
+            if (_currentFrameMaxValues[0] > _allTimeMaxValue[0])
+            {
+                _allTimeMaxValue[0] = _currentFrameMaxValues[0];
+                _allTimeMaxCoordinates[0] = _currentFrameMaxCoordinates[0];
+            } // if
+
+            // Output the D4-sigma values
+            Dispatcher.Invoke(() =>
+            {
+                DebugWindow.Instance.DataTextBox.AppendText($"D4-sigma for segment 1: σx = {d4SigmaX:F2}, σy = {d4SigmaY:F2}\n");
+                //D4SigmaTextBlock_520_1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
+                CoordinateMaxTextBlock_520_1.Text = $"Max Peak Intensity: {_allTimeMaxValue[0]}";
+                CoordinateCurrentTextBlock_520_1.Text = $"Current Peak Intensity: {_currentFrameMaxValues[0]}";
+            });
+
             // Format the centroid position for display
             string centroidPosition = $"Centroid ({centroid.X:F2}, {centroid.Y:F2})";
+
+            // Calculate the θ angle between the centroid and the x-axis
+            double theta = Math.Atan2(centroids[0].Y, centroids[0].X) * 180 / Math.PI;
+            string thetaAngle = $"Tilt Angle θ = {theta:F2}°";
 
             // Update the CoordinateDataTextBlock with the formatted text
             Dispatcher.Invoke(() =>
             {
-                CoordinateDataTextBlock1.Text = centroidPosition;
+                for (int i = 0; i < centroids.Count; i++)
+                {
+                    DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
+                } // for
+
+                CoordinateDataTextBlock_520_1.Text = centroidPosition;
+                ThetaAngleTextBlock2.Text = thetaAngle;
             });
 
             // Draw the centroid on the bitmap
@@ -940,6 +962,44 @@ namespace UsbApp
             d4SigmaX = 4 * Math.Sqrt(sumXX / sumValue);
             d4SigmaY = 4 * Math.Sqrt(sumYY / sumValue);
         } // CalculateD4Sigma
+
+        private void CalculateD4SigmaOneSet(double centroidX, double centroidY, out double d4SigmaX, out double d4SigmaY)
+        {
+            double sumXX = 0;
+            double sumYY = 0;
+            double sumValue = 0;
+            int imageHeight = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+
+            for (int y = 0; y < imageHeight; y++)
+            {
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        // Combine two bytes to form a 16-bit value
+                        int packetIndex = y * 2;
+                        ulong value = (ulong)(packet[packetIndex + 1] << 8 | packet[packetIndex]);
+
+                        if (value == 0)
+                        {
+                            value = 1; // Avoid division by zero
+                        } // if
+                          // Adjust x and y to have (0,0) at the center of the segment
+                        double adjustedX = x - (TotalLines / 2.0);
+                        double adjustedY = y - (imageHeight / 2.0);
+
+                        sumXX += (adjustedX - centroidX) * (adjustedX - centroidX) * value;
+                        sumYY += (adjustedY - centroidY) * (adjustedY - centroidY) * value;
+                        sumValue += value;
+                    } // if
+                } // for
+            } // for
+
+            d4SigmaX = 4 * Math.Sqrt(sumXX / sumValue);
+            d4SigmaY = 4 * Math.Sqrt(sumYY / sumValue);
+        } // CalculateD4SigmaOneSet
 
         public void DrawAxesAndCentroids(List<Point> centroids, int topBottomSegmentHeight, int middleSegmentHeight, int dontCareHeight)
         {
@@ -1013,28 +1073,28 @@ namespace UsbApp
                     int middleY = imageHeight / 2;
                     context.DrawLine(new Pen(Brushes.Red, 1), new Point(0, middleY), new Point(width, middleY));
                     context.DrawLine(new Pen(Brushes.Red, 1), new Point(width / 2, 0), new Point(width / 2, imageHeight));
-                }
+                } // if
 
                 // Draw the centroid
-                context.DrawEllipse(Brushes.Red, null, centroid, 5, 5);
-            }
+                //context.DrawEllipse(Brushes.Red, null, centroid, 5, 5);
+            } // using
 
-            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap_520.PixelWidth, _bitmap_520.PixelHeight, 96, 96, PixelFormats.Pbgra32);
             renderBitmap.Render(visual);
 
             // Combine the axes and centroid with the existing bitmap
             DrawingVisual combinedVisual = new DrawingVisual();
             using (DrawingContext context = combinedVisual.RenderOpen())
             {
-                context.DrawImage(_bitmap_1560, new Rect(0, 0, _bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight));
-                context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight));
-            }
+                context.DrawImage(_bitmap_520, new Rect(0, 0, _bitmap_520.PixelWidth, _bitmap_520.PixelHeight));
+                context.DrawImage(renderBitmap, new Rect(0, 0, _bitmap_520.PixelWidth, _bitmap_520.PixelHeight));
+            } // using
 
-            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap_1560.PixelWidth, _bitmap_1560.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+            RenderTargetBitmap combinedBitmap = new RenderTargetBitmap(_bitmap_520.PixelWidth, _bitmap_520.PixelHeight, 96, 96, PixelFormats.Pbgra32);
             combinedBitmap.Render(combinedVisual);
 
             // Update the ImageCanvas with the combined image
-            ImageCanvas_1560.Background = new ImageBrush(combinedBitmap);
+            ImageCanvas_520.Background = new ImageBrush(combinedBitmap);
         } // DrawAxesAndCentroidOneSet
 
         public void DrawGraphs()
@@ -1046,6 +1106,12 @@ namespace UsbApp
             DrawXAxisGraph(2, XAxisGraphCanvas3);
             DrawYAxisGraph(2, YAxisGraphCanvas3);
         } // DrawGraphs
+
+        public void DrawGraphsOneSet()
+        {
+            DrawXAxisGraphOneSet(XAxisGraphCanvas_520_1);
+            DrawYAxisGraphOneSet(YAxisGraphCanvas_520_1);
+        } // DrawGraphsOneSet
 
         private void DrawXAxisGraph(int segment, Canvas canvas)
         {
@@ -1184,6 +1250,129 @@ namespace UsbApp
             canvas.Background = new ImageBrush(renderBitmap);
         } // DrawYAxisGraph
 
+        private void DrawXAxisGraphOneSet(Canvas canvas)
+        {
+            int imageHeight = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+            double[] xSums = new double[TotalLines];
+            for (int x = 0; x < TotalLines; x++)
+            {
+                double sum = 0;
+                for (int y = 0; y < imageHeight; y++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        int packetIndex = y * 2;
+                        int value = (packet[packetIndex + 1] << 8) | packet[packetIndex];
+                        sum += value;
+                    } // if
+                } // for
+                xSums[x] = sum;
+            } // for
+
+            double maxSum = xSums.Max();
+            double scale = canvas.Height / maxSum;
+            if (maxSum == 0)
+            {
+                scale = 1;
+            } // if
+
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(0, canvas.Height / 2), new Point(canvas.Width, canvas.Height / 2));
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(canvas.Width / 2, 35), new Point(canvas.Width / 2, 65));
+
+                PointCollection points = new PointCollection();
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    double y = (canvas.Height - (xSums[x] * scale)) / 2;
+                    context.DrawLine(new Pen(Brushes.Green, 1), new Point(x, canvas.Height / 2), new Point(x, y));
+                    points.Add(new Point(x, y));
+                } // for
+
+                // Draw the curve line using the highest points
+                if (points.Count > 1)
+                {
+                    PathFigure pathFigure = new PathFigure { StartPoint = points[0] };
+                    PolyBezierSegment bezierSegment = new PolyBezierSegment(points, true);
+                    pathFigure.Segments.Add(bezierSegment);
+                    PathGeometry pathGeometry = new PathGeometry();
+                    pathGeometry.Figures.Add(pathFigure);
+                    context.DrawGeometry(null, new Pen(Brushes.Green, 2), pathGeometry);
+                } // if
+            } // using
+
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap((int)canvas.Width, (int)canvas.Height, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+            canvas.Background = new ImageBrush(renderBitmap);
+        } // DrawXAxisGraphOneSet
+
+        private void DrawYAxisGraphOneSet(Canvas canvas)
+        {
+            int imageHeight = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+            double[] ySums = new double[imageHeight];
+            for (int y = 0; y < imageHeight; y++)
+            {
+                double sum = 0;
+                for (int x = 0; x < TotalLines; x++)
+                {
+                    int index = y * TotalLines + x;
+                    byte[] packet = _receivedPackets[x];
+                    if (packet != null)
+                    {
+                        int packetIndex = y * 2;
+                        int value = (packet[packetIndex + 1] << 8) | packet[packetIndex];
+                        sum += value;
+                    }
+                }
+                ySums[y] = sum;
+            } // for
+
+            double maxSum = ySums.Max();
+            double scale = canvas.Width / maxSum;
+            if (maxSum == 0)
+            {
+                scale = 1;
+            } // if
+
+            DrawingVisual visual = new DrawingVisual();
+            using (DrawingContext context = visual.RenderOpen())
+            {
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(canvas.Width / 2, 0), new Point(canvas.Width / 2, canvas.Height));
+                context.DrawLine(new Pen(Brushes.White, 2), new Point(35, canvas.Height / 2), new Point(65, canvas.Height / 2));
+
+                PointCollection points = new PointCollection();
+                for (int y = 0; y < imageHeight; y++)
+                {
+                    double x = (canvas.Width - (ySums[y] * scale)) / 2;
+                    if (x != (canvas.Width / 2))
+                    {
+                        x = (canvas.Width - (ySums[y] * scale)) / 2 + (canvas.Width / 2);
+                    } // if
+
+                    context.DrawLine(new Pen(Brushes.Green, 1), new Point(canvas.Width / 2, y), new Point(x, y));
+                    points.Add(new Point(x, y));
+                } // for
+
+                // Draw the curve line using the rightest points
+                if (points.Count > 1)
+                {
+                    PathFigure pathFigure = new PathFigure { StartPoint = points[0] };
+                    PolyBezierSegment bezierSegment = new PolyBezierSegment(points, true);
+                    pathFigure.Segments.Add(bezierSegment);
+                    PathGeometry pathGeometry = new PathGeometry();
+                    pathGeometry.Figures.Add(pathFigure);
+                    context.DrawGeometry(null, new Pen(Brushes.Green, 2), pathGeometry);
+                } // if
+            } // using
+
+            RenderTargetBitmap renderBitmap = new RenderTargetBitmap((int)canvas.Width, (int)canvas.Height, 96, 96, PixelFormats.Pbgra32);
+            renderBitmap.Render(visual);
+            canvas.Background = new ImageBrush(renderBitmap);
+        } // DrawYAxisGraphOneSet
+
         // --------------------------------- Mouse Events -------------------------------------
         private void ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -1261,6 +1450,15 @@ namespace UsbApp
             } // else
         } // ImageCanvas_MouseLeave
 
+        private void maxValue_InputKeyDown(object sender, KeyEventArgs e)
+        {
+            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({e.Key})\n")); // test
+            if (e.Key == Key.Enter)
+            {
+                OldMax = Convert.ToUInt64(((TextBox)sender).Text);
+            } // if
+        } // maxValue_InputKeyDown
+
         private void DrawCross(Point position)
         {
             int width = (CurrentTab == 1560) ? _bitmap_1560.PixelWidth : _bitmap_520.PixelWidth;
@@ -1333,14 +1531,14 @@ namespace UsbApp
 
         private void ShowEnlargedSegment(int segmentIndex)
         {
+
             if (!_enlargedSegmentWindows.ContainsKey(segmentIndex))
             {
                 var enlargedSegmentWindow = new EnlargedSegmentWindow();
                 enlargedSegmentWindow.Closed += (sender, e) => _enlargedSegmentWindows.Remove(segmentIndex);
                 _enlargedSegmentWindows[segmentIndex] = enlargedSegmentWindow;
                 enlargedSegmentWindow.Show();
-            }
-
+            } // if
             var window = _enlargedSegmentWindows[segmentIndex];
             window.Title = $"Segment {segmentIndex + 1}";
             window.segmentIndex = segmentIndex;
