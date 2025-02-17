@@ -14,9 +14,24 @@
     <WarningLevel>4</WarningLevel>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -24,6 +39,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -41,9 +57,12 @@
     <Reference Include="LibUsbDotNet.LibUsbDotNet, Version=2.2.0.0, Culture=neutral, PublicKeyToken=c677239abe1e02a9, processorArchitecture=MSIL">
       <HintPath>packages\LibUsbDotNet.2.2.29\lib\net45\LibUsbDotNet.LibUsbDotNet.dll</HintPath>
     </Reference>
+    <Reference Include="Python.Runtime, Version=3.0.5.0, Culture=neutral, PublicKeyToken=5000fea6cba702dd, processorArchitecture=MSIL">
+      <HintPath>packages\pythonnet.3.0.5\lib\netstandard2.0\Python.Runtime.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
-    <Reference Include="System.CodeDom, Version=9.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>packages\System.CodeDom.9.0.0\lib\net462\System.CodeDom.dll</HintPath>
+    <Reference Include="System.CodeDom, Version=9.0.0.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>packages\System.CodeDom.9.0.2\lib\net462\System.CodeDom.dll</HintPath>
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Management" />
@@ -117,9 +136,65 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
+    <None Include="Python311\pyexpat.pyd" />
+    <None Include="Python311\python.cat" />
+    <None Include="Python311\python311.zip" />
+    <None Include="Python311\python311._pth" />
+    <None Include="Python311\select.pyd" />
+    <None Include="Python311\unicodedata.pyd" />
+    <None Include="Python311\winsound.pyd" />
+    <None Include="Python311\_asyncio.pyd" />
+    <None Include="Python311\_bz2.pyd" />
+    <None Include="Python311\_ctypes.pyd" />
+    <None Include="Python311\_decimal.pyd" />
+    <None Include="Python311\_elementtree.pyd" />
+    <None Include="Python311\_hashlib.pyd" />
+    <None Include="Python311\_lzma.pyd" />
+    <None Include="Python311\_msi.pyd" />
+    <None Include="Python311\_multiprocessing.pyd" />
+    <None Include="Python311\_overlapped.pyd" />
+    <None Include="Python311\_queue.pyd" />
+    <None Include="Python311\_socket.pyd" />
+    <None Include="Python311\_sqlite3.pyd" />
+    <None Include="Python311\_ssl.pyd" />
+    <None Include="Python311\_uuid.pyd" />
+    <None Include="Python311\_zoneinfo.pyd" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Python311\libcrypto-1_1.dll" />
+    <Content Include="Python311\libffi-8.dll" />
+    <Content Include="Python311\libssl-1_1.dll" />
+    <Resource Include="Python311\LICENSE.txt" />
+    <Content Include="Python311\python.exe" />
+    <Content Include="Python311\python3.dll" />
+    <Content Include="Python311\python311.dll" />
+    <Content Include="Python311\pythonw.exe" />
+    <Content Include="Python311\sqlite3.dll" />
+    <Content Include="Python311\vcruntime140.dll" />
+    <Content Include="Python311\vcruntime140_1.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Python311\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Python311\**">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

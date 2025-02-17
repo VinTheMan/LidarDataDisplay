@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 using static System.Windows.Forms.AxHost;
+using Python.Runtime;
 
 namespace UsbApp
 {
@@ -139,6 +140,34 @@ namespace UsbApp
 
             // Open the debug window
             DebugWindow.Instance.Show();
+
+            // Test python script
+            // Set the Python DLL path to the local directory within the application
+            string pythonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Python311");
+            string pythonLibPath = Path.Combine(pythonPath, "Lib");
+            string sitePackagesPath = Path.Combine(pythonLibPath, "site-packages");
+
+            Environment.SetEnvironmentVariable("PYTHONHOME", pythonPath);
+            Environment.SetEnvironmentVariable("PYTHONPATH", sitePackagesPath);
+
+            Runtime.PythonDLL = Path.Combine(pythonPath, "python311.dll");
+            PythonEngine.Initialize();
+            using (Py.GIL())
+            {
+                try
+                {
+                    dynamic lbs = Py.Import("numpy");
+                    dynamic a = lbs.array(new List<float> { 1, 2, 3 });
+                    dynamic b = lbs.array(new List<float> { 6, 5, 4 }, dtype: lbs.int32);
+
+                    ImageDimensionsTextBlock.Text = $"{a * b}";
+                    Console.WriteLine(a * b);
+                }
+                catch (PythonException ex)
+                {
+                    Console.WriteLine($"Python error: {ex.Message}");
+                }
+            } // using
         } // MainWindow
 
         private void MainWindow_Closed(object sender, System.EventArgs e)
