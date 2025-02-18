@@ -1,7 +1,7 @@
 ﻿<Window x:Class="UsbApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Image Sensor Signal Display v0.2 2025.02.12" Height="700" Width="800"
+        Title="Image Sensor Signal Display v0.2 2025.02.12" Height="700" Width="1000"
         Background="#333333" Foreground="#FFFFFF"
         Closed="MainWindow_Closed">
     <Grid>
@@ -13,7 +13,7 @@
             <ColumnDefinition Width="0*" />
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
-        <Ellipse x:Name="GreenLight" Width="20" Height="20" Fill="Green" Visibility="Collapsed" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="576,0,0,0" Grid.ColumnSpan="2"/>
+        <Ellipse x:Name="GreenLight" Width="20" Height="20" Fill="Green" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Grid.ColumnSpan="2"/>
         <TabControl x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged" Grid.Column="0" Background="#333333" Grid.ColumnSpan="2" Grid.RowSpan="2" Margin="0,2,0,0">
             <TabItem Header="AA(1560)" Name="Height_1560">
                 <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
@@ -110,9 +110,9 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="ThetaAngleTextBlock" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                             <TextBlock Text="Max Sampling Range:" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                             <TextBox x:Name="OldMaxTextBox_1560" Text="{Binding OldMax, Mode=TwoWay}" Width="100" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" FontSize="16"/>
+                            <TextBlock x:Name="ThetaAngleTextBlock" Margin="60,0,0,0" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                         </Grid>
                         <TextBlock x:Name="HoverPositionTextBlock_1560" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16" KeyDown="maxValue_InputKeyDown"/>
                     </StackPanel>
@@ -180,10 +180,11 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="ThetaAngleTextBlock2" Margin="60,0,0,0" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                             <TextBlock Text="Max Sampling Range:" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                             <TextBox x:Name="OldMaxTextBox_520" Text="{Binding OldMax, Mode=TwoWay}" Width="100" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" FontSize="16"/>
+                            <TextBlock x:Name="ThetaAngleTextBlock2" Margin="60,0,0,0" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                         </Grid>
                         <TextBlock x:Name="HoverPositionTextBlock_520" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16" KeyDown="maxValue_InputKeyDown" />
                     </StackPanel>

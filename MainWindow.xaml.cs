@@ -160,13 +160,13 @@ namespace UsbApp
                     dynamic a = lbs.array(new List<float> { 1, 2, 3 });
                     dynamic b = lbs.array(new List<float> { 6, 5, 4 }, dtype: lbs.int32);
 
-                    ImageDimensionsTextBlock.Text = $"{a * b}";
+                    //ImageDimensionsTextBlock.Text = $"{a * b}";
                     Console.WriteLine(a * b);
-                }
+                } // try
                 catch (PythonException ex)
                 {
                     Console.WriteLine($"Python error: {ex.Message}");
-                }
+                } // catch
             } // using
         } // MainWindow
 
@@ -272,13 +272,17 @@ namespace UsbApp
                                     byte r = _receivedPackets_save[col][row * 3];
                                     byte g = _receivedPackets_save[col][row * 3 + 1];
                                     byte b = _receivedPackets_save[col][row * 3 + 2];
-                                    rowData.Add($"0x{b:X2}{g:X2}{r:X2}");
+                                    uint value = (uint)((b << 16) | (g << 8) | r);
+                                    //rowData.Add($"0x{b:X2}{g:X2}{r:X2}"); // Hexadecimal value
+                                    rowData.Add($"{value}"); // Decimal value
+
                                     //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({col},{row}):{b:X2}\n"));
                                 } // if
                                 else
                                 {
                                     ushort value = (ushort)(_receivedPackets_save[col][row * 2 + 1] << 8 | _receivedPackets_save[col][row * 2]);
-                                    rowData.Add($"0x{value:X4}");
+                                    //rowData.Add($"0x{value:X4}"); // Hexadecimal value
+                                    rowData.Add($"{value}"); // Decimal value
                                 } // else
                             } // if
                             else
@@ -565,7 +569,7 @@ namespace UsbApp
             for (int i = 0; i < length; i++)
             {
                 checksum += data[i];
-            }
+            } // for
             return checksum;
         } // CalculateChecksum
 
@@ -575,7 +579,7 @@ namespace UsbApp
             for (int i = offset; i < offset + length; i++)
             {
                 checksum += data[i];
-            }
+            } // for
             return checksum;
         } // CalculateChecksum
 
@@ -621,8 +625,7 @@ namespace UsbApp
                 } // if
             } // for
 
-            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax})\n")); // test
-
+            //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax})\n")); // test
             _bitmap_1560.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
 
             CalculateCentroids();
@@ -662,7 +665,7 @@ namespace UsbApp
                 } // if
             } // for
 
-            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax}, current frame max: {maxValue})\n")); // test
+            //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax}, current frame max: {maxValue})\n")); // test
             _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
 
             CalculateCentroidsOneSet();
@@ -819,15 +822,6 @@ namespace UsbApp
             // Calculate the θ angle between the top and bottom segment centroids
             double theta = Math.Atan2(centroids[2].Y - centroids[0].Y, centroids[2].X - centroids[0].X) * 180 / Math.PI;
 
-            // Output the centroids
-            Dispatcher.Invoke(() =>
-            {
-                for (int i = 0; i < centroids.Count; i++)
-                {
-                    DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
-                } // for
-            });
-
             // Format the centroid positions for display
             string centroidPositions1 = $"Centroid A ({centroids[0].X:F2}, {centroids[0].Y:F2})";
             string centroidPositions2 = $"Centroid B ({centroids[1].X:F2}, {centroids[1].Y:F2})";
@@ -837,6 +831,11 @@ namespace UsbApp
             // Update the CoordinateDataTextBlock with the formatted text
             Dispatcher.Invoke(() =>
             {
+                for (int i = 0; i < centroids.Count; i++)
+                {
+                    DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
+                } // for
+
                 CoordinateDataTextBlock1.Text = centroidPositions1;
                 CoordinateDataTextBlock2.Text = centroidPositions2;
                 CoordinateDataTextBlock3.Text = centroidPositions3;
@@ -894,15 +893,6 @@ namespace UsbApp
             double centroidX = sumX / sumValue;
             double centroidY = sumY / sumValue;
 
-            // Adjust coordinates to have (0,0) at the center of the image
-            Point centroid = new Point(centroidX, centroidY);
-
-            // Output the centroid
-            Dispatcher.Invoke(() =>
-            {
-                DebugWindow.Instance.DataTextBox.AppendText($"Centroid of the whole image: ({centroid.X}, {centroid.Y})\n");
-            });
-
             // Store the original centroid coordinates
             originalCentroids.Add(new Point(centroidX + (TotalLines / 2.0), centroidY + (imageHeight / 2.0)));
 
@@ -923,6 +913,7 @@ namespace UsbApp
             // Output the D4-sigma values
             Dispatcher.Invoke(() =>
             {
+                DebugWindow.Instance.DataTextBox.AppendText($"Centroid of the whole image: ({centroids[0].X}, {centroids[0].Y})\n");
                 DebugWindow.Instance.DataTextBox.AppendText($"D4-sigma for segment 1: σx = {d4SigmaX:F2}, σy = {d4SigmaY:F2}\n");
                 //D4SigmaTextBlock_520_1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
                 CoordinateMaxTextBlock_520_1.Text = $"Max Peak Intensity: {_allTimeMaxValue[0]}";
@@ -930,7 +921,7 @@ namespace UsbApp
             });
 
             // Format the centroid position for display
-            string centroidPosition = $"Centroid ({centroid.X:F2}, {centroid.Y:F2})";
+            string centroidPosition = $"Centroid ({centroids[0].X:F2}, {centroids[0].Y:F2})";
 
             // Calculate the θ angle between the centroid and the x-axis
             double theta = Math.Atan2(centroids[0].Y, centroids[0].X) * 180 / Math.PI;
@@ -945,11 +936,11 @@ namespace UsbApp
                 } // for
 
                 CoordinateDataTextBlock_520_1.Text = centroidPosition;
-                ThetaAngleTextBlock2.Text = thetaAngle;
+                // ThetaAngleTextBlock2.Text = thetaAngle;
             });
 
             // Draw the centroid on the bitmap
-            DrawAxesAndCentroidOneSet(centroid, imageHeight);
+            DrawAxesAndCentroidOneSet(originalCentroids[0], imageHeight);
         } // CalculateCentroidsOneSet
 
         private void CalculateD4Sigma(int startY, int endY, double centroidX, double centroidY, out double d4SigmaX, out double d4SigmaY)
@@ -1105,7 +1096,7 @@ namespace UsbApp
                 } // if
 
                 // Draw the centroid
-                //context.DrawEllipse(Brushes.Red, null, centroid, 5, 5);
+                context.DrawEllipse(Brushes.Red, null, centroid, 3, 3);
             } // using
 
             RenderTargetBitmap renderBitmap = new RenderTargetBitmap(_bitmap_520.PixelWidth, _bitmap_520.PixelHeight, 96, 96, PixelFormats.Pbgra32);
