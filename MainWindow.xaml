@@ -1,7 +1,7 @@
 ﻿<Window x:Class="UsbApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Image Sensor Signal Display v0.2 2025.02.12" Height="700" Width="1000"
+        Title="Image Sensor Signal Display v0.3 2025.02.18" Height="700" Width="1000"
         Background="#333333" Foreground="#FFFFFF"
         Closed="MainWindow_Closed">
     <Grid>
@@ -159,7 +159,7 @@
                                 <ColumnDefinition Width="100"/>
                                 <ColumnDefinition Width="100"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
+                                <!-- <ColumnDefinition Width="Auto"/> -->
                             </Grid.ColumnDefinitions>
                             <!-- Canvas for X-axis graph for segment 1 -->
                             <Canvas x:Name="XAxisGraphCanvas_520_1" Width="100" Height="100" Grid.Column="0" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
@@ -167,14 +167,15 @@
                             <Canvas x:Name="YAxisGraphCanvas_520_1" Width="100" Height="100" Grid.Column="1" HorizontalAlignment="Left" Margin="0,0,10,0" Background="#444444"/>
                             <!-- StackPanel to display coordinate and D4-sigma data -->
                             <StackPanel Grid.Column="2" HorizontalAlignment="Left" Margin="20,0,0,0">
-                                <TextBlock Foreground="#FFFFFF" FontSize="16" Text="Block 1"/>
+                                <!-- <TextBlock Foreground="#FFFFFF" FontSize="16" Text="Block 1"/> -->
                                 <TextBlock x:Name="CoordinateMaxTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
                                 <TextBlock x:Name="CoordinateCurrentTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
                                 <TextBlock x:Name="CoordinateDataTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
-                                <!-- <TextBlock x:Name="D4SigmaTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/> -->
                             </StackPanel>
+                            <!--<StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
+                                 <TextBlock x:Name="CoordinateDataTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/> 
+                                <TextBlock x:Name="D4SigmaTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
+                            </StackPanel> -->
                         </Grid>
                         <Grid Margin="30,10,0,0">
                             <Grid.ColumnDefinitions>

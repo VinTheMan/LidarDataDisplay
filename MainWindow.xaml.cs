@@ -198,6 +198,17 @@ namespace UsbApp
                 {
                     StopListening();
                 } // if
+
+                // Reset the data
+                // Initialize the all-time max coordinates
+                for (int i = 0; i < _allTimeMaxCoordinates.Length; i++)
+                {
+                    _allTimeMaxCoordinates[i] = new Point(0, 0);
+                    _allTimeMaxValue[i] = 0;
+                    _currentFrameMaxCoordinates[i] = new Point(0, 0);
+                    _currentFrameMaxValues[i] = 0;
+                } // for
+                ResetData();
             } // if
         } // MainTabControl_SelectionChanged
 
