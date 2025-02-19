@@ -131,6 +131,7 @@
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
     <None Include="app.manifest" />
+    <None Include="Current UDP packet format 20250219.pdf" />
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -188,12 +189,10 @@
     <Content Include="Python311\vcruntime140.dll" />
     <Content Include="Python311\vcruntime140_1.dll" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Python311\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Content Include="Python311\**">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
