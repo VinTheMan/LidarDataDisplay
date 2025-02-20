@@ -19,6 +19,7 @@ using System.Linq;
 using System.Diagnostics;
 using static System.Windows.Forms.AxHost;
 using Python.Runtime;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace UsbApp
 {
@@ -152,22 +153,7 @@ namespace UsbApp
 
             Runtime.PythonDLL = Path.Combine(pythonPath, "python311.dll");
             PythonEngine.Initialize();
-            using (Py.GIL())
-            {
-                try
-                {
-                    dynamic lbs = Py.Import("numpy");
-                    dynamic a = lbs.array(new List<float> { 1, 2, 3 });
-                    dynamic b = lbs.array(new List<float> { 6, 5, 4 }, dtype: lbs.int32);
 
-                    //ImageDimensionsTextBlock.Text = $"{a * b}";
-                    Console.WriteLine(a * b);
-                } // try
-                catch (PythonException ex)
-                {
-                    Console.WriteLine($"Python error: {ex.Message}");
-                } // catch
-            } // using
         } // MainWindow
 
         private void MainWindow_Closed(object sender, System.EventArgs e)
@@ -676,7 +662,6 @@ namespace UsbApp
                 } // if
             } // for
 
-            //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({OldMax}, current frame max: {maxValue})\n")); // test
             _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
 
             CalculateCentroidsOneSet();
@@ -687,6 +672,51 @@ namespace UsbApp
             {
                 window.UpdateImage(_bitmap_520);
             } // foreach
+
+            // Convert WriteableBitmap to byte array
+            byte[] bitmapBytes;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                PngBitmapEncoder encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(_bitmap_520));
+                encoder.Save(stream);
+                bitmapBytes = stream.ToArray();
+            } // using
+
+            // Save the byte array to a temporary file
+            string tempFilePath = Path.GetTempFileName();
+            File.WriteAllBytes(tempFilePath, bitmapBytes);
+
+            using (Py.GIL())
+            {
+                try
+                {
+                    dynamic iio = Py.Import("imageio.v3");
+                    dynamic lbs = Py.Import("laserbeamsize");
+
+                    // Read the image from the temporary file
+                    dynamic image = iio.imread(tempFilePath);
+                    dynamic output = lbs.beam_size(image);
+
+                    // Retrieve the values from the output tuple
+                    double x = output[0];
+                    double y = output[1];
+                    double dx = output[2];
+                    double dy = output[3];
+                    double phi = output[4];
+
+                    Console.WriteLine($"Diameter :{dx} x {dy}");
+                    Console.WriteLine($"The center of the beam ellipse is at ({x}, {y})");
+                    Console.WriteLine($"The ellipse is rotated {(phi * 180 / 3.1416):F2}° ccw from the horizontal");
+                } // try
+                catch (PythonException ex)
+                {
+                    Console.WriteLine($"Python error: {ex}");
+                } // catch
+            } // using
+
+            // Delete the temporary file
+            File.Delete(tempFilePath);
 
             FlashGreenLight(); // Flash the green light
         } // UpdateBitmapV2
