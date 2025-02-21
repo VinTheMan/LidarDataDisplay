@@ -171,6 +171,7 @@
                                 <TextBlock x:Name="CoordinateMaxTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
                                 <TextBlock x:Name="CoordinateCurrentTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
                                 <TextBlock x:Name="CoordinateDataTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
+                                <TextBlock x:Name="PhiDataTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/>
                             </StackPanel>
                             <!--<StackPanel Grid.Column="3" HorizontalAlignment="Left" Margin="20,0,0,0">
                                  <TextBlock x:Name="CoordinateDataTextBlock_520_1" Foreground="#FFFFFF" FontSize="16"/> 

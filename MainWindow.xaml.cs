@@ -705,9 +705,13 @@ namespace UsbApp
                     double dy = output[3];
                     double phi = output[4];
 
-                    Console.WriteLine($"Diameter :{dx} x {dy}");
-                    Console.WriteLine($"The center of the beam ellipse is at ({x}, {y})");
-                    Console.WriteLine($"The ellipse is rotated {(phi * 180 / 3.1416):F2}° ccw from the horizontal");
+                    Dispatcher.Invoke(() => {
+                        DebugWindow.Instance.DataTextBox.AppendText($"Center ({x}, {y})\n");
+                        DebugWindow.Instance.DataTextBox.AppendText($"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.\n");
+                    });
+
+                    //Console.WriteLine($"Diameter :{dx} x {dy}"); // test
+                    //Console.WriteLine($"The center of the beam ellipse is at ({x}, {y})"); // test
                 } // try
                 catch (PythonException ex)
                 {
@@ -962,7 +966,7 @@ namespace UsbApp
             });
 
             // Format the centroid position for display
-            string centroidPosition = $"Centroid ({centroids[0].X:F2}, {centroids[0].Y:F2})";
+            string centroidPosition = $"Center ({centroids[0].X:F2}, {centroids[0].Y:F2})";
 
             // Calculate the θ angle between the centroid and the x-axis
             double theta = Math.Atan2(centroids[0].Y, centroids[0].X) * 180 / Math.PI;
