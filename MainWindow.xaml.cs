@@ -20,6 +20,9 @@ using System.Diagnostics;
 using static System.Windows.Forms.AxHost;
 using Python.Runtime;
 using static System.Net.Mime.MediaTypeNames;
+using System.Threading;
+using System.Collections.Concurrent;
+using Application = System.Windows.Application; // Add this alias directive
 
 namespace UsbApp
 {
@@ -42,10 +45,12 @@ namespace UsbApp
         public const int TotalPacketSize_520 = 1047; // 0x0417 (1047 bytes)(1 UDP packet with 1047 bytes, but the valid data would be the first 1040 bytes.)
         public const int TotalLines = 105;
 
-        private UdpClient udpClient;
-        private bool isListening;
-
         public SerialPort _serialPort;
+        static int port = 7000; // set UDP port number
+        static bool isListening = false;
+        static public ConcurrentQueue<byte[]> packetQueue = new ConcurrentQueue<byte[]>(); // queue to store the received packets
+        Thread udpReceiverThread = new Thread(UdpReceiver);
+
         public WriteableBitmap _bitmap_1560;
         public WriteableBitmap _bitmap_520;
         public int _currentLine = 0;
@@ -54,9 +59,10 @@ namespace UsbApp
 
         public Point clickPosition;
         public byte[][] _receivedPackets = new byte[TotalLines][];
-        public bool[] _receivedPacketFlags = new bool[TotalLines];
+        public bool[] _receivedPacketFlags1560 = new bool[TotalLines];
+
         public byte[][] _receivedPackets_save = new byte[TotalLines][];
-        public bool[] _receivedPacketFlags_save = new bool[TotalLines];
+        public bool[] _receivedPacketFlags1560_save = new bool[TotalLines];
         public Point? _clickedPoint = null;
 
         public int _lastPsn = -1;
@@ -139,6 +145,8 @@ namespace UsbApp
             ImageDimensionsTextBlock.Text = $"Image Dimensions: 105x1560";
             ImageDimensionsTextBlock2.Text = $"Image Dimensions: 105x520";
 
+            udpReceiverThread.IsBackground = true;
+
             // Open the debug window
             DebugWindow.Instance.Show();
 
@@ -158,7 +166,7 @@ namespace UsbApp
 
         private void MainWindow_Closed(object sender, System.EventArgs e)
         {
-            StopListening();
+            // Stop all threads and close the application
             System.Windows.Application.Current.Shutdown();
         } // MainWindow_Closed
 
@@ -182,7 +190,7 @@ namespace UsbApp
                 // Stop listening for UDP packets and update button text
                 if (isListening)
                 {
-                    StopListening();
+                    isListening = false;
                 } // if
 
                 // Reset the data
@@ -206,7 +214,10 @@ namespace UsbApp
 
         public void SaveCsvButton_Click(object sender, RoutedEventArgs e)
         {
-            SaveDataToCsv();
+            if (CurrentTab == 1560)
+                SaveDataToCsv1560();
+            else
+                SaveDataToCsv520();
         } // SaveCsvButton_Click
 
         public void SaveImage()
@@ -238,7 +249,7 @@ namespace UsbApp
             } // if
         } // SaveImage
 
-        private void SaveDataToCsv()
+        private void SaveDataToCsv1560()
         {
             // Create a file dialog to save the CSV file
             Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
@@ -262,25 +273,16 @@ namespace UsbApp
                         List<string> rowData = new List<string>();
                         for (int col = 0; col < TotalLines; col++)
                         {
-                            if (_receivedPacketFlags_save[col])
+                            if (_receivedPacketFlags1560_save[col])
                             {
-                                if (CurrentTab == 1560)
-                                {
-                                    byte r = _receivedPackets_save[col][row * 3];
-                                    byte g = _receivedPackets_save[col][row * 3 + 1];
-                                    byte b = _receivedPackets_save[col][row * 3 + 2];
-                                    uint value = (uint)((b << 16) | (g << 8) | r);
-                                    //rowData.Add($"0x{b:X2}{g:X2}{r:X2}"); // Hexadecimal value
-                                    rowData.Add($"{value}"); // Decimal value
+                                byte r = _receivedPackets_save[col][row * 3];
+                                byte g = _receivedPackets_save[col][row * 3 + 1];
+                                byte b = _receivedPackets_save[col][row * 3 + 2];
+                                uint value = (uint)((b << 16) | (g << 8) | r);
+                                //rowData.Add($"0x{b:X2}{g:X2}{r:X2}"); // Hexadecimal value
+                                rowData.Add($"{value}"); // Decimal value
 
-                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({col},{row}):{b:X2}\n"));
-                                } // if
-                                else
-                                {
-                                    ushort value = (ushort)(_receivedPackets_save[col][row * 2 + 1] << 8 | _receivedPackets_save[col][row * 2]);
-                                    //rowData.Add($"0x{value:X4}"); // Hexadecimal value
-                                    rowData.Add($"{value}"); // Decimal value
-                                } // else
+                                //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({col},{row}):{b:X2}\n"));
                             } // if
                             else
                             {
@@ -291,7 +293,57 @@ namespace UsbApp
                     } // for
                 } // using
             } // if
-        } // SaveDataToCsv
+        } // SaveDataToCsv1560
+
+        private void SaveDataToCsv520()
+        {
+            // Create a file dialog to save the CSV file
+            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.FileName = "Data"; // Default file name
+            dlg.DefaultExt = ".csv"; // Default file extension
+            dlg.Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*"; // Filter files by extension
+            int AmbientDataSize = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+            // Show save file dialog box
+            bool? result = dlg.ShowDialog();
+            // Process save file dialog box results
+            if (result == true)
+            {
+                // Save the data to a CSV file
+                string filename = dlg.FileName;
+                using (StreamWriter writer = new StreamWriter(filename))
+                {
+                    for (int z = 0; z < TotalLines; z++)
+                    {
+                        writer.WriteLine($"----------------------------------------------------------------------------{z}----------------------------------------------------------------------------");
+
+                        for (int y = 0; y < AmbientDataSize; y++)
+                        {
+                            List<string> rowData = new List<string>();
+                            for (int x = 0; x < AmbientDataSize; x++)
+                            {
+                                if (_receivedPacketFlagsDict520.ContainsKey(z) && _receivedPacketFlagsDict520[z].Length > y)
+                                {
+                                    if (_receivedPacketFlagsDict520[z][y])
+                                    {
+                                        ushort value = (ushort)(_receivedPacketsDict520[z][y][x * 2 + 1] << 8 | _receivedPacketsDict520[z][y][x * 2]);
+                                        rowData.Add($"{value}"); // Decimal value
+                                    } // if
+                                    else
+                                    {
+                                        rowData.Add("NA"); // Default value if packet is not received
+                                    } // else
+                                } // if
+                                else
+                                {
+                                    rowData.Add("NA"); // Default value if key is not found
+                                } // else
+                            } // for
+                            writer.WriteLine(string.Join(",", rowData));
+                        } // for
+                    } // for
+                } // using
+            } // if
+        } // SaveDataToCsv520
 
         private async void StartListeningButton_Click(object sender, RoutedEventArgs e)
         {
@@ -299,9 +351,9 @@ namespace UsbApp
 
             if (isListening)
             {
-                StopListening();
+                isListening = false;
                 button.Content = "Start Listening";
-            } // if
+            }
             else
             {
                 isListening = true;
@@ -312,44 +364,99 @@ namespace UsbApp
                     _currentFrameMaxCoordinates[i] = new Point(0, 0);
                     _allTimeMaxCoordinates[i] = new Point(0, 0);
                     _allTimeMaxValue[i] = 0;
-                } // for
-                udpClient = new UdpClient(7000); // Use the appropriate port number
-                UdpDataTextBlock.Text = "Listening for UDP packets...";
-                UdpDataTextBlock2.Text = "Listening for UDP packets...";
+                }
+
+                UdpDataTextBlock.Text = $"Listening on UDP port {port}...";
+                UdpDataTextBlock2.Text = $"Listening on UDP port {port}...";
                 button.Content = "Stop Listening";
 
-                await Task.Run(() => ListenForUdpPackets());
-            } // else
+                if (udpReceiverThread.ThreadState == System.Threading.ThreadState.Unstarted)
+                {
+                    await Task.Run(() => udpReceiverThread.Start());
+                }
+                else
+                {
+                    // restart the thread when the thread is already running or terminated
+                    udpReceiverThread = new Thread(UdpReceiver);
+                    udpReceiverThread.IsBackground = true;
+                    udpReceiverThread.Start();
+                }
+            }
+            DebugWindow.Instance.DataTextBox.AppendText($"isListening: {isListening}, ThreadState: {udpReceiverThread.ThreadState}\n");
         } // StartListeningButton_Click
-
-        private void StopListening()
+        static void UdpReceiver()
         {
-            if (udpClient != null)
-                udpClient.Close();
-            isListening = false;
-            ListeningBtn.Content = "Start Listening";
-            ListeningBtn2.Content = "Start Listening";
-            UdpDataTextBlock.Text = "Stopped listening.";
-            UdpDataTextBlock2.Text = "Stopped listening.";
-        } // StopListening
+            UdpClient udpClient = new UdpClient(port);
+            IPEndPoint remoteEP = new IPEndPoint(IPAddress.Any, port);
 
-        private async void ListenForUdpPackets()
-        {
             try
             {
                 while (isListening)
                 {
-                    var result = await udpClient.ReceiveAsync();
-                    byte[] receivedData = result.Buffer;
-                    //Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"{receivedData[0]}");
-                    //return;
-                    ParseUdpPacket(receivedData);
+                    if (udpClient.Available > 0) // make sure that the client is available to receive data
+                    {
+                        byte[] receivedData = udpClient.Receive(ref remoteEP);
+                        packetQueue.Enqueue(receivedData); // store the received packet in the queue
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            var mainWindow = (MainWindow)Application.Current.MainWindow;
+                            mainWindow.ListenForUdpPackets();
+                        });
+                    } // if
+                    else
+                    {
+                        Thread.Sleep(1); // sleep for 1 ms to reduce CPU usage
+                    } // else
                 } // while
             } // try
-            catch (ObjectDisposedException)
+            catch (Exception ex)
             {
-                // Handle the case when the UDP client is closed
-                Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"UDP client is closed.");
+                Console.WriteLine($"Receiver Error: {ex.Message}");
+            } // catch
+            finally
+            {
+                udpClient.Close();
+                isListening = false;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var mainWindow = (MainWindow)Application.Current.MainWindow;
+                    mainWindow.ListeningBtn.Content = "Start Listening";
+                    mainWindow.ListeningBtn2.Content = "Start Listening";
+                    mainWindow.UdpDataTextBlock.Text = "Stopped listening.";
+                    mainWindow.UdpDataTextBlock2.Text = "Stopped listening.";
+                });
+            } // finally
+        } // UdpReceiver
+        public async void ListenForUdpPackets()
+        {
+            try
+            {
+                await Task.Run(() =>
+                {
+                    while (isListening || !packetQueue.IsEmpty) // Ensure all packets are processed
+                    {
+                        if (packetQueue.TryDequeue(out byte[] receivedData))
+                        {
+                            if (Application.Current.Dispatcher.HasShutdownStarted || Application.Current.Dispatcher.HasShutdownFinished)
+                            {
+                                break; // Exit the loop if the dispatcher is shutting down
+                            }
+
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                ParseUdpPacket(receivedData);
+                            });
+                        }
+                        else
+                        {
+                            Thread.Sleep(1); // Reduce CPU usage when no data is available
+                        }
+                    }
+                });
+            }
+            catch (TaskCanceledException)
+            {
+                System.Windows.Application.Current.Shutdown();
             } // catch
             catch (Exception ex)
             {
@@ -359,14 +466,17 @@ namespace UsbApp
 
         private Dictionary<int, byte[][]> _receivedPacketsDict = new Dictionary<int, byte[][]>();
         private Dictionary<int, int> _receivedPacketFlagsDict = new Dictionary<int, int>();
+
+        private Dictionary<int, byte[][]> _receivedPacketsDict520 = new Dictionary<int, byte[][]>();
+        private Dictionary<int, bool[]> _receivedPacketFlagsDict520 = new Dictionary<int, bool[]>();
+
+        //private Dictionary<int, byte[][]> _receivedPacketsDict520_save = new Dictionary<int, byte[][]>();
+        //private Dictionary<int, bool[]> _receivedPacketFlagsDict520_save = new Dictionary<int, bool[]>();
+
         private readonly object _lock = new object();
 
         public void ParseUdpPacket(byte[] data)
         {
-            // print the data for debug
-            //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"Data: {BitConverter.ToString(data)}\n"));
-            //return;
-
             int UdpPacketSize = (CurrentTab == 1560) ? UdpPacketSize_1560 : UdpPacketSize_520;
             int ValidDataSize = (CurrentTab == 1560) ? ValidDataSize_1560 : ValidDataSize_520;
 
@@ -380,7 +490,6 @@ namespace UsbApp
             {
                 byte udpNumber = data[0]; // 0 ~ 3 // 1 byte
                 int psn = data[1]; // 0 ~ 104 // 1 byte
-                                   // print the data for debug
 
                 lock (_lock)
                 {
@@ -396,7 +505,7 @@ namespace UsbApp
                                 {
                                     if (_receivedPacketsDict[i][j] != null)
                                     {
-                                        _receivedPacketFlags[i] = true;
+                                        _receivedPacketFlags1560[i] = true;
                                         byte[] wholeVerticalLine = new byte[AmbientDataSize_1560 * 3];
 
                                         int combinedDataOffset = j * (UdpPacketSize - 2);
@@ -417,7 +526,6 @@ namespace UsbApp
                             } // if
                         } // for
 
-                        //ParseCombinedData(combinedData);
                         Dispatcher.Invoke(() =>
                         {
                             UpdateBitmap();
@@ -458,7 +566,7 @@ namespace UsbApp
                         {
                             for (int i = 0; i < TotalLines; i++)
                             {
-                                _receivedPacketFlags[i] = true;
+                                _receivedPacketFlags1560[i] = true;
                                 byte[] wholeVerticalLine = new byte[AmbientDataSize_1560 * 3];
 
                                 for (int j = 0; j < 4; j++)
@@ -473,21 +581,12 @@ namespace UsbApp
                                     {
                                         Array.Copy(_receivedPacketsDict[i][j], 0, wholeVerticalLine, combinedDataOffset, _receivedPacketsDict[i][j].Length);
                                     } // else
-
-                                    // print the data for debug
-                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"OG: {i}, {j} :: {_receivedPacketsDict[i][j][0]:X2}-{_receivedPacketsDict[i][j][1]:X2}---{_receivedPacketsDict[i][j][1197]:X2}\n" +
-                                    //    $"DE: {i},{j} ::{wholeVerticalLine[2395]:X2}-{wholeVerticalLine[2396]:X2}-{wholeVerticalLine[2397]:X2}\n"));
-                                    //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"{combinedDataOffset}\n"));
                                 } // for
 
                                 // Paste wholeVerticalLine to _receivedPackets[i]
                                 _receivedPackets[i] = wholeVerticalLine.ToArray();
-
-                                //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"udp: {_receivedPackets[i].Length}, psn: {_receivedPacketsDict[i][0][1]:X2}\n"));
                             } // for
 
-                            // Parse the combined data
-                            //ParseCombinedData(combinedData);
                             Dispatcher.Invoke(() =>
                             {
                                 UpdateBitmap();
@@ -502,60 +601,36 @@ namespace UsbApp
             } // if
             else // 520
             {
-                int psn = data[0]; // 0 ~ 104 // 1 byte
-                // Print the data for debug
-                //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"psn: {psn}\n"));
-                //return;
+                int pixelNumber = (data[1] << 8) | data[0]; // 2 bytes (0 ~ 519)
+                byte slotNumber = data[2]; // 1 byte (0 ~ 104)
 
                 lock (_lock)
                 {
-                    // Check if the packet with the same udpNumber and psn has already been received
-                    if (_receivedPacketFlags[psn] == true)
+                    if (!_receivedPacketsDict520.ContainsKey(slotNumber))
                     {
-                        // update the bitmap with available lines
-                        Dispatcher.Invoke(() =>
-                        {
-                            UpdateBitmapV2();
-                            ResetData();
-                        });
-
+                        _receivedPacketsDict520[slotNumber] = new byte[520][];
+                        _receivedPacketFlagsDict520[slotNumber] = new bool[520];
                     } // if
 
-                    // Store the received packet
-                    _receivedPackets[psn] = new byte[UdpPacketSize - 7];
-                    Array.Copy(data, 1, _receivedPackets[psn], 0, UdpPacketSize - 7);
-                    _receivedPacketFlags[psn] = true;
+                    //if (_receivedPacketFlagsDict520[slotNumber][pixelNumber])
+                    //{
+                    //    Dispatcher.Invoke(() =>
+                    //    {
+                    //        UpdateBitmapV2(slotNumber);
+                    //        ResetData();
+                    //    });
+                    //} // if
 
-                    // Check if all packets for the frame have been received
-                    bool allPacketsReceived = true;
-                    for (int i = 0; i < TotalLines; i++)
+                    _receivedPacketsDict520[slotNumber][pixelNumber] = new byte[ValidDataSize];
+                    Array.Copy(data, 3, _receivedPacketsDict520[slotNumber][pixelNumber], 0, ValidDataSize);
+                    _receivedPacketFlagsDict520[slotNumber][pixelNumber] = true;
+
+                    Dispatcher.Invoke(() =>
                     {
-                        if (!_receivedPacketFlags[i])
-                        {
-                            allPacketsReceived = false;
-                            break;
-                        } // if
-                    } // for
+                        UpdateBitmapV2(slotNumber, pixelNumber);
+                        //ResetData();
+                    });
 
-                    if (allPacketsReceived)
-                    {
-                        // Process the complete frame
-                        Dispatcher.Invoke(() =>
-                        {
-                            // print the whole _receivedPackets
-                            var debugMessages = new StringBuilder();
-                            for (int i = 0; i < TotalLines; i++)
-                            {
-                                //debugMessages.AppendLine($"_receivedPackets[{i}]: {BitConverter.ToString(_receivedPackets[i])}");
-                            } // for
-
-                            //DebugWindow.Instance.DataTextBox.AppendText(debugMessages.ToString());
-                            UpdateBitmapV2();
-                        });
-
-                        // Clear the flags and buffer for the next frame
-                        ResetData();
-                    } // if
                 } // lock
             } // else
         } // ParseUdpPacket
@@ -593,11 +668,11 @@ namespace UsbApp
 
         public void UpdateBitmap()
         {
-            int AmbientDataSize = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+            int AmbientDataSize = AmbientDataSize_1560;
             byte[] grayData = new byte[TotalLines * AmbientDataSize];
             for (int i = 0; i < TotalLines; i++)
             {
-                if (_receivedPacketFlags[i])
+                if (_receivedPacketFlags1560[i])
                 {
                     for (int j = 0; j < AmbientDataSize; j++)
                     {
@@ -637,92 +712,109 @@ namespace UsbApp
             FlashGreenLight(); // Flash the green light
         } // UpdateBitmap
 
-        public void UpdateBitmapV2()
+        byte[] wholeFrameGrayData520 = new byte[AmbientDataSize_520 * TotalLines];
+        private Dictionary<int, ulong[]> pixelCompressSum = new Dictionary<int, ulong[]>();
+
+        public void UpdateBitmapV2(int slotNumber, int pixelNumber)
         {
-            int AmbientDataSize = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
-            byte[] grayData = new byte[TotalLines * AmbientDataSize];
-            for (int i = 0; i < TotalLines; i++)
-            {
-                if (_receivedPacketFlags[i])
-                {
-                    for (int j = 0; j < AmbientDataSize; j++)
-                    {
-                        // Combine two bytes to form a 16-bit value
-                        ulong value = (ulong)(_receivedPackets[i][j * 2 + 1] << 8 | _receivedPackets[i][j * 2]);
-                        if (value > maxValue) // for debug
-                        {
-                            maxValue = value;
-                        } // if
+            //byte[] grayData = new byte[AmbientDataSize_520];
 
-                        // NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
-                        value = (ulong)((((value - 0) * (255 - 0)) / ((OldMax) - 0) + 0));
-                        value = Math.Min(value, 255); // Ensure value does not exceed 255
-                        grayData[j * TotalLines + i] = Convert.ToByte(value);
-                    } // for
+            if (_receivedPacketFlagsDict520.ContainsKey(slotNumber))
+            {
+                ulong sumOfPixelTimeLapse = 0;
+                for (int k = 0; k < AmbientDataSize_520; k++)
+                {
+                    sumOfPixelTimeLapse += (ulong)(_receivedPacketsDict520[slotNumber][pixelNumber][k * 2 + 1] << 8 | _receivedPacketsDict520[slotNumber][pixelNumber][k * 2]);
+                } // for
+
+                if (sumOfPixelTimeLapse > (ulong)maxValue) // for debug
+                {
+                    maxValue = (ulong)sumOfPixelTimeLapse;
                 } // if
-            } // for
-
-            _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize), grayData, TotalLines, 0);
-
-            CalculateCentroidsOneSet();
-            DrawGraphsOneSet();
-
-            // Update each EnlargedSegmentWindow
-            foreach (var window in _enlargedSegmentWindows.Values)
-            {
-                window.UpdateImage(_bitmap_520);
-            } // foreach
-
-            // Convert WriteableBitmap to byte array
-            byte[] bitmapBytes;
-            using (MemoryStream stream = new MemoryStream())
-            {
-                PngBitmapEncoder encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(_bitmap_520));
-                encoder.Save(stream);
-                bitmapBytes = stream.ToArray();
-            } // using
-
-            // Save the byte array to a temporary file
-            string tempFilePath = Path.GetTempFileName();
-            File.WriteAllBytes(tempFilePath, bitmapBytes);
-
-            using (Py.GIL())
-            {
-                try
+                if (!pixelCompressSum.ContainsKey(slotNumber))
                 {
-                    dynamic iio = Py.Import("imageio.v3");
-                    dynamic lbs = Py.Import("laserbeamsize");
+                    pixelCompressSum[slotNumber] = new ulong[520];
+                } // if
 
-                    // Read the image from the temporary file
-                    dynamic image = iio.imread(tempFilePath);
-                    dynamic output = lbs.beam_size(image);
+                pixelCompressSum[slotNumber][pixelNumber] = sumOfPixelTimeLapse;
+                sumOfPixelTimeLapse = ((((sumOfPixelTimeLapse - 0) * (255 - 0)) / ((ulong)OldMax - 0) + 0));
+                sumOfPixelTimeLapse = Math.Min(sumOfPixelTimeLapse, 255);
+                //grayData[pixelNumber] = Convert.ToByte(sumOfPixelTimeLapse);
+                wholeFrameGrayData520[pixelNumber * TotalLines + slotNumber] = Convert.ToByte(sumOfPixelTimeLapse);
 
-                    // Retrieve the values from the output tuple
-                    double x = output[0];
-                    double y = output[1];
-                    double dx = output[2];
-                    double dy = output[3];
-                    double phi = output[4];
+                //Dispatcher.Invoke(() =>
+                //{
+                //    DebugWindow.Instance.DataTextBox.AppendText($"({maxValue})\n"); // test
+                //});
 
-                    Dispatcher.Invoke(() => {
-                        DebugWindow.Instance.DataTextBox.AppendText($"Center ({x}, {y})\n");
-                        DebugWindow.Instance.DataTextBox.AppendText($"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.\n");
-                    });
+                // Update only the specified pixel on the bitmap
+                //_bitmap_520.WritePixels(new Int32Rect(slotNumber, pixelNumber, 1, 1), new byte[] { grayData[pixelNumber] }, 1, 0);
 
-                    //Console.WriteLine($"Diameter :{dx} x {dy}"); // test
-                    //Console.WriteLine($"The center of the beam ellipse is at ({x}, {y})"); // test
-                } // try
-                catch (PythonException ex)
+                // Update only the specified slot on the bitmap
+                //_bitmap_520.WritePixels(new Int32Rect(slotNumber, 0, 1, AmbientDataSize), grayData, 1, 0);
+
+                if (slotNumber >= 104 && pixelNumber >= 519)
                 {
-                    Console.WriteLine($"Python error: {ex}");
-                } // catch
-            } // using
+                    _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize_520), wholeFrameGrayData520, TotalLines, 0);
 
-            // Delete the temporary file
-            File.Delete(tempFilePath);
+                    foreach (var window in _enlargedSegmentWindows.Values)
+                    {
+                        window.UpdateImage(_bitmap_520);
+                    } // foreach
 
-            FlashGreenLight(); // Flash the green light
+                    CalculateCentroidsOneSet();
+                    DrawGraphsOneSet();
+
+                    // Convert WriteableBitmap to byte array
+                    byte[] bitmapBytes;
+                    using (MemoryStream stream = new MemoryStream())
+                    {
+                        PngBitmapEncoder encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(_bitmap_520));
+                        encoder.Save(stream);
+                        bitmapBytes = stream.ToArray();
+                    } // using
+
+                    // Save the byte array to a temporary file
+                    string tempFilePath = Path.GetTempFileName();
+                    File.WriteAllBytes(tempFilePath, bitmapBytes);
+
+                    using (Py.GIL())
+                    {
+                        try
+                        {
+                            dynamic iio = Py.Import("imageio.v3");
+                            dynamic lbs = Py.Import("laserbeamsize");
+
+                            // Read the image from the temporary file
+                            dynamic image = iio.imread(tempFilePath);
+                            dynamic output = lbs.beam_size(image);
+
+                            // Retrieve the values from the output tuple
+                            double x = output[0];
+                            double y = output[1];
+                            double dx = output[2];
+                            double dy = output[3];
+                            double phi = output[4];
+
+                            Dispatcher.Invoke(() =>
+                            {
+                                DebugWindow.Instance.DataTextBox.AppendText($"Center ({x}, {y})\n");
+                                DebugWindow.Instance.DataTextBox.AppendText($"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.\n");
+                            });
+                        } // try
+                        catch (PythonException ex)
+                        {
+                            Console.WriteLine($"Python error: {ex}");
+                        } // catch
+                    } // using
+
+                    // Delete the temporary file
+                    File.Delete(tempFilePath);
+
+                    FlashGreenLight(); // Flash the green light
+                } // if
+            } // if
         } // UpdateBitmapV2
 
         protected override void OnClosed(EventArgs e)
@@ -735,13 +827,26 @@ namespace UsbApp
         {
             _lastPsn = -1; // Reset the last PSN value
             _currentLine = 0;
-            // Save the data before resetting
-            Array.Copy(_receivedPackets, _receivedPackets_save, _receivedPackets.Length);
-            Array.Copy(_receivedPacketFlags, _receivedPacketFlags_save, _receivedPacketFlags.Length);
+
+            // Save the data before resetting (520), directly copy dictionary and flags
+            //_receivedPacketsDict520_save = new Dictionary<int, byte[][]>(_receivedPacketsDict520);
+            //_receivedPacketFlagsDict520_save = new Dictionary<int, bool[]>(_receivedPacketFlagsDict520);
+
+            // Save the data before resetting (1560)
+            for (int i = 0; i < TotalLines; i++)
+            {
+                _receivedPacketFlags1560_save[i] = _receivedPacketFlags1560[i]; // Deep copy the received packet flags
+            } // for
+
+            // Clear the data for the next frame (1560)
             Array.Clear(_receivedPackets, 0, _receivedPackets.Length);
-            Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
-            // InitializeBitmap(); // Reinitialize the bitmap
+            Array.Clear(_receivedPacketFlags1560, 0, _receivedPacketFlags1560.Length);
+
+            // Clear the flags and buffer for the next frame (520)
+            _receivedPacketFlagsDict520.Clear();
+            _receivedPacketsDict520.Clear();
         } // ResetData
+
 
 
         // ------------------------------------------ Calculation of the Centroids ---------------------------------
@@ -907,17 +1012,14 @@ namespace UsbApp
             {
                 for (int x = 0; x < TotalLines; x++)
                 {
-                    int index = y * TotalLines + x;
-                    byte[] packet = _receivedPackets[x];
-                    if (packet != null)
+                    if (pixelCompressSum.ContainsKey(x) && pixelCompressSum[x].Length > y)
                     {
-                        int packetIndex = y * 2;
-                        ulong value = (ulong)((packet[packetIndex + 1] << 8) | packet[packetIndex]);
+                        ulong value = pixelCompressSum[x][y];
                         if (value == 0)
                         {
                             value = 1; // Avoid division by zero
                         } // if
-                        // Adjust x and y to have (0,0) at the center of the image
+                          // Adjust x and y to have (0,0) at the center of the image
                         double adjustedX = x - (TotalLines / 2.0);
                         double adjustedY = y - (imageHeight / 2.0);
 
@@ -1324,12 +1426,9 @@ namespace UsbApp
                 double sum = 0;
                 for (int y = 0; y < imageHeight; y++)
                 {
-                    int index = y * TotalLines + x;
-                    byte[] packet = _receivedPackets[x];
-                    if (packet != null)
+                    if (pixelCompressSum.ContainsKey(x) && pixelCompressSum[x].Length > y)
                     {
-                        int packetIndex = y * 2;
-                        int value = (packet[packetIndex + 1] << 8) | packet[packetIndex];
+                        ulong value = pixelCompressSum[x][y];
                         sum += value;
                     } // if
                 } // for
@@ -1373,7 +1472,6 @@ namespace UsbApp
             renderBitmap.Render(visual);
             canvas.Background = new ImageBrush(renderBitmap);
         } // DrawXAxisGraphOneSet
-
         private void DrawYAxisGraphOneSet(Canvas canvas)
         {
             int imageHeight = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
@@ -1383,15 +1481,12 @@ namespace UsbApp
                 double sum = 0;
                 for (int x = 0; x < TotalLines; x++)
                 {
-                    int index = y * TotalLines + x;
-                    byte[] packet = _receivedPackets[x];
-                    if (packet != null)
+                    if (pixelCompressSum.ContainsKey(x) && pixelCompressSum[x].Length > y)
                     {
-                        int packetIndex = y * 2;
-                        int value = (packet[packetIndex + 1] << 8) | packet[packetIndex];
+                        ulong value = pixelCompressSum[x][y];
                         sum += value;
-                    }
-                }
+                    } // if
+                } // for
                 ySums[y] = sum;
             } // for
 

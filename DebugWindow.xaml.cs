@@ -53,8 +53,9 @@ namespace UsbApp
                 // Start the timer
                 _timer.Start();
                 ((Button)sender).Content = "Stop Simulation";
-            }
-        }
+                ((MainWindow)Application.Current.MainWindow).ListenForUdpPackets(); // Ensure ListenForUdpPackets is called
+            } // else
+        } // TestSimulationButton_Click
 
         private void ClearTextButton_Click(object sender, RoutedEventArgs e)
         {
@@ -101,22 +102,28 @@ namespace UsbApp
             // Simulate 105 packets per second
             for (int i = 0; i < 105; i++)
             {
-                if( ((MainWindow)Application.Current.MainWindow).CurrentTab == 1560)
+                if (((MainWindow)Application.Current.MainWindow).CurrentTab == 1560)
                 {
-                    for( int j = 0;  j < 4; j++)
+                    for (int j = 0; j < 4; j++)
                     {
                         byte[] packet = GenerateMockUdpPacket(i, Scenario.Valid, j);
-                        Dispatcher.Invoke(() => ((MainWindow)Application.Current.MainWindow).ParseUdpPacket(packet));
+                        MainWindow.packetQueue.Enqueue(packet);
+                        //DebugWindow.Instance.DataTextBox.AppendText($"Enqueued packet: {BitConverter.ToString(packet)}\n");
                     } // for
-                } // if 
+                } // for
                 else
                 {
-                    byte[] packet = GenerateMockUdpPacket(i, Scenario.Valid, 0);
-                    Dispatcher.Invoke(() => ((MainWindow)Application.Current.MainWindow).ParseUdpPacket(packet));
+                    for (int j = 0; j < 520; j++)
+                    {
+                        byte[] packet = GenerateMockUdpPacket(i, Scenario.Valid, j);
+                        MainWindow.packetQueue.Enqueue(packet);
+                        //DebugWindow.Instance.DataTextBox.AppendText($"Enqueued packet: {BitConverter.ToString(packet)}\n");
+                    } // for
                     _packetIndex = (_packetIndex + 1) % 105;
                 } // else
-            } // for
+            }
         } // End of method Timer_Tick
+
 
         private enum Scenario
         {
@@ -146,10 +153,15 @@ namespace UsbApp
             else
             {
                 // BSAA format
-                packet[0] = (byte)psn; // PSN (0 to 104)
+                int pixelNumber = packetIndex;
+                byte slotNumber = (byte)psn;
+
+                packet[0] = (byte)(pixelNumber & 0xFF); // Lower byte of pixelNumber
+                packet[1] = (byte)((pixelNumber >> 8) & 0xFF); // Upper byte of pixelNumber
+                packet[2] = slotNumber; // Slot number
 
                 // AmbientData
-                for (int i = 1; i < UdpPacketSize; i++)
+                for (int i = 3; i < UdpPacketSize; i++)
                 {
                     packet[i] = (byte)_rand.Next(256);
                 } // for
