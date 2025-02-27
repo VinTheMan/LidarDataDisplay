@@ -639,7 +639,7 @@ namespace UsbApp
 
         public void UpdateBitmapV2()
         {
-            int AmbientDataSize = (CurrentTab == 1560) ? AmbientDataSize_1560 : AmbientDataSize_520;
+            int AmbientDataSize = AmbientDataSize_520;
             byte[] grayData = new byte[TotalLines * AmbientDataSize];
             for (int i = 0; i < TotalLines; i++)
             {
@@ -705,9 +705,17 @@ namespace UsbApp
                     double dy = output[3];
                     double phi = output[4];
 
+                    // Calculate the center of the image
+                    double centerX = _bitmap_520.PixelWidth / 2.0;
+                    double centerY = _bitmap_520.PixelHeight / 2.0;
+
+                    // Adjust the x and y values to have (0,0) at the center of the image
+                    double adjustedX = x - centerX;
+                    double adjustedY = centerY - y; // Invert y to match the coordinate system
+
                     Dispatcher.Invoke(() => {
-                        DebugWindow.Instance.DataTextBox.AppendText($"Center ({x}, {y})\n");
-                        DebugWindow.Instance.DataTextBox.AppendText($"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.\n");
+                        CoordinateDataTextBlock_520_1.Text = $"Center ({adjustedX:F0}, {adjustedY:F0})";
+                        PhiDataTextBlock_520_1.Text = $"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.";
                     });
 
                     //Console.WriteLine($"Diameter :{dx} x {dy}"); // test
@@ -958,8 +966,8 @@ namespace UsbApp
             // Output the D4-sigma values
             Dispatcher.Invoke(() =>
             {
-                DebugWindow.Instance.DataTextBox.AppendText($"Centroid of the whole image: ({centroids[0].X}, {centroids[0].Y})\n");
-                DebugWindow.Instance.DataTextBox.AppendText($"D4-sigma for segment 1: σx = {d4SigmaX:F2}, σy = {d4SigmaY:F2}\n");
+                //DebugWindow.Instance.DataTextBox.AppendText($"Centroid of the whole image: ({centroids[0].X}, {centroids[0].Y})\n");
+                //DebugWindow.Instance.DataTextBox.AppendText($"D4-sigma for segment 1: σx = {d4SigmaX:F2}, σy = {d4SigmaY:F2}\n");
                 //D4SigmaTextBlock_520_1.Text = $"D4σx = {d4SigmaX:F2}\nD4σy = {d4SigmaY:F2}";
                 CoordinateMaxTextBlock_520_1.Text = $"Max Peak Intensity: {_allTimeMaxValue[0]}";
                 CoordinateCurrentTextBlock_520_1.Text = $"Current Peak Intensity: {_currentFrameMaxValues[0]}";
@@ -980,7 +988,7 @@ namespace UsbApp
                     DebugWindow.Instance.DataTextBox.AppendText($"Centroid of segment {i + 1}: ({centroids[i].X}, {centroids[i].Y})\n");
                 } // for
 
-                CoordinateDataTextBlock_520_1.Text = centroidPosition;
+                // CoordinateDataTextBlock_520_1.Text = centroidPosition;
                 // ThetaAngleTextBlock2.Text = thetaAngle;
             });
 
