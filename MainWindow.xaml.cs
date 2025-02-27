@@ -722,10 +722,15 @@ namespace UsbApp
             if (_receivedPacketFlagsDict520.ContainsKey(slotNumber))
             {
                 ulong sumOfPixelTimeLapse = 0;
-                for (int k = 0; k < AmbientDataSize_520; k++)
+                object lockObject = new object();
+                Parallel.For(0, AmbientDataSize_520, k =>
                 {
-                    sumOfPixelTimeLapse += (ulong)(_receivedPacketsDict520[slotNumber][pixelNumber][k * 2 + 1] << 8 | _receivedPacketsDict520[slotNumber][pixelNumber][k * 2]);
-                } // for
+                    ulong value = (ulong)(_receivedPacketsDict520[slotNumber][pixelNumber][k * 2 + 1] << 8 | _receivedPacketsDict520[slotNumber][pixelNumber][k * 2]);
+                    lock (lockObject)
+                    {
+                        sumOfPixelTimeLapse += value;
+                    } // lock
+                });
 
                 if (sumOfPixelTimeLapse > (ulong)maxValue) // for debug
                 {
