@@ -429,6 +429,9 @@ namespace UsbApp
         } // UdpReceiver
         public async void ListenForUdpPackets()
         {
+            const int batchSize = 10; // Define the batch size
+            List<byte[]> batch = new List<byte[]>(batchSize);
+
             try
             {
                 await Task.Run(() =>
@@ -437,23 +440,30 @@ namespace UsbApp
                     {
                         if (packetQueue.TryDequeue(out byte[] receivedData))
                         {
-                            if (Application.Current.Dispatcher.HasShutdownStarted || Application.Current.Dispatcher.HasShutdownFinished)
-                            {
-                                break; // Exit the loop if the dispatcher is shutting down
-                            }
+                            batch.Add(receivedData);
 
-                            Application.Current.Dispatcher.Invoke(() =>
+                            // Process the batch when it reaches the defined size
+                            if (batch.Count >= batchSize)
                             {
-                                ParseUdpPacket(receivedData);
-                            });
-                        }
+                                List<byte[]> batchCopy = new List<byte[]>(batch);
+                                ThreadPool.QueueUserWorkItem(_ => ProcessBatch(batchCopy));
+                                batch.Clear();
+                            } // if
+                        } // if
                         else
                         {
                             Thread.Sleep(1); // Reduce CPU usage when no data is available
-                        }
-                    }
+                        } // else
+                    } // while
+
+                    // Process any remaining packets in the batch
+                    if (batch.Count > 0)
+                    {
+                        List<byte[]> batchCopy = new List<byte[]>(batch);
+                        ThreadPool.QueueUserWorkItem(_ => ProcessBatch(batchCopy));
+                    } // if
                 });
-            }
+            } // try
             catch (TaskCanceledException)
             {
                 System.Windows.Application.Current.Shutdown();
@@ -463,6 +473,17 @@ namespace UsbApp
                 Dispatcher.Invoke(() => UdpDataTextBlock.Text = $"Error: {ex}");
             } // catch
         } // ListenForUdpPackets
+
+        private void ProcessBatch(List<byte[]> batch)
+        {
+            foreach (var data in batch)
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ParseUdpPacket(data);
+                });
+            } // foreach
+        } // ProcessBatch
 
         private Dictionary<int, byte[][]> _receivedPacketsDict = new Dictionary<int, byte[][]>();
         private Dictionary<int, int> _receivedPacketFlagsDict = new Dictionary<int, int>();
@@ -477,6 +498,8 @@ namespace UsbApp
 
         public void ParseUdpPacket(byte[] data)
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
             int UdpPacketSize = (CurrentTab == 1560) ? UdpPacketSize_1560 : UdpPacketSize_520;
             int ValidDataSize = (CurrentTab == 1560) ? ValidDataSize_1560 : ValidDataSize_520;
 
@@ -612,15 +635,6 @@ namespace UsbApp
                         _receivedPacketFlagsDict520[slotNumber] = new bool[520];
                     } // if
 
-                    //if (_receivedPacketFlagsDict520[slotNumber][pixelNumber])
-                    //{
-                    //    Dispatcher.Invoke(() =>
-                    //    {
-                    //        UpdateBitmapV2(slotNumber);
-                    //        ResetData();
-                    //    });
-                    //} // if
-
                     _receivedPacketsDict520[slotNumber][pixelNumber] = new byte[ValidDataSize];
                     Array.Copy(data, 3, _receivedPacketsDict520[slotNumber][pixelNumber], 0, ValidDataSize);
                     _receivedPacketFlagsDict520[slotNumber][pixelNumber] = true;
@@ -628,13 +642,16 @@ namespace UsbApp
                     Dispatcher.Invoke(() =>
                     {
                         UpdateBitmapV2(slotNumber, pixelNumber);
-                        //ResetData();
                     });
-
                 } // lock
             } // else
-        } // ParseUdpPacket
 
+            stopwatch.Stop();
+            if (stopwatch.ElapsedMilliseconds > 0)
+            {
+                //DebugWindow.Instance.DataTextBox.AppendText($"ParseUdpPacket execution time: {stopwatch.ElapsedMilliseconds} ms\n");
+            } // if
+        } // ParseUdpPacket
         public ushort CalculateChecksum(byte[] data, int length)
         {
             ushort checksum = 0;
@@ -717,55 +734,58 @@ namespace UsbApp
 
         public void UpdateBitmapV2(int slotNumber, int pixelNumber)
         {
-            //byte[] grayData = new byte[AmbientDataSize_520];
+            Stopwatch stopwatch = Stopwatch.StartNew();
 
             if (_receivedPacketFlagsDict520.ContainsKey(slotNumber))
             {
                 ulong sumOfPixelTimeLapse = 0;
+                byte[] pixelData = _receivedPacketsDict520[slotNumber][pixelNumber];
+
+                // Use local variables to store frequently accessed data
+                int ambientDataSize = AmbientDataSize_520;
+                ulong localMaxValue = maxValue;
+                ulong localOldMax = OldMax;
+
+                // Use a local object for locking
                 object lockObject = new object();
-                Parallel.For(0, AmbientDataSize_520, k =>
+
+                // Use parallel processing to calculate the sum of pixel time lapse
+                Parallel.For(0, ambientDataSize, k =>
                 {
-                    ulong value = (ulong)(_receivedPacketsDict520[slotNumber][pixelNumber][k * 2 + 1] << 8 | _receivedPacketsDict520[slotNumber][pixelNumber][k * 2]);
+                    ulong value = (ulong)(pixelData[k * 2 + 1] << 8 | pixelData[k * 2]);
                     lock (lockObject)
                     {
                         sumOfPixelTimeLapse += value;
-                    } // lock
+                    }
                 });
 
-                if (sumOfPixelTimeLapse > (ulong)maxValue) // for debug
+                // Update maxValue if necessary
+                if (sumOfPixelTimeLapse > localMaxValue)
                 {
-                    maxValue = (ulong)sumOfPixelTimeLapse;
-                } // if
+                    localMaxValue = sumOfPixelTimeLapse;
+                }
+
+                // Update pixelCompressSum dictionary
                 if (!pixelCompressSum.ContainsKey(slotNumber))
                 {
                     pixelCompressSum[slotNumber] = new ulong[520];
-                } // if
-
+                }
                 pixelCompressSum[slotNumber][pixelNumber] = sumOfPixelTimeLapse;
-                sumOfPixelTimeLapse = ((((sumOfPixelTimeLapse - 0) * (255 - 0)) / ((ulong)OldMax - 0) + 0));
+
+                // Normalize the sumOfPixelTimeLapse value
+                sumOfPixelTimeLapse = ((((sumOfPixelTimeLapse - 0) * (255 - 0)) / (localOldMax - 0)) + 0);
                 sumOfPixelTimeLapse = Math.Min(sumOfPixelTimeLapse, 255);
-                //grayData[pixelNumber] = Convert.ToByte(sumOfPixelTimeLapse);
                 wholeFrameGrayData520[pixelNumber * TotalLines + slotNumber] = Convert.ToByte(sumOfPixelTimeLapse);
 
-                //Dispatcher.Invoke(() =>
-                //{
-                //    DebugWindow.Instance.DataTextBox.AppendText($"({maxValue})\n"); // test
-                //});
-
-                // Update only the specified pixel on the bitmap
-                //_bitmap_520.WritePixels(new Int32Rect(slotNumber, pixelNumber, 1, 1), new byte[] { grayData[pixelNumber] }, 1, 0);
-
-                // Update only the specified slot on the bitmap
-                //_bitmap_520.WritePixels(new Int32Rect(slotNumber, 0, 1, AmbientDataSize), grayData, 1, 0);
-
+                // Update the bitmap and perform additional operations if necessary
                 if (slotNumber >= 104 && pixelNumber >= 519)
                 {
-                    _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, AmbientDataSize_520), wholeFrameGrayData520, TotalLines, 0);
+                    _bitmap_520.WritePixels(new Int32Rect(0, 0, TotalLines, ambientDataSize), wholeFrameGrayData520, TotalLines, 0);
 
                     foreach (var window in _enlargedSegmentWindows.Values)
                     {
                         window.UpdateImage(_bitmap_520);
-                    } // foreach
+                    }
 
                     CalculateCentroidsOneSet();
                     DrawGraphsOneSet();
@@ -778,7 +798,7 @@ namespace UsbApp
                         encoder.Frames.Add(BitmapFrame.Create(_bitmap_520));
                         encoder.Save(stream);
                         bitmapBytes = stream.ToArray();
-                    } // using
+                    }
 
                     // Save the byte array to a temporary file
                     string tempFilePath = Path.GetTempFileName();
@@ -807,11 +827,11 @@ namespace UsbApp
                                 DebugWindow.Instance.DataTextBox.AppendText($"Center ({x}, {y})\n");
                                 DebugWindow.Instance.DataTextBox.AppendText($"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.\n");
                             });
-                        } // try
+                        }
                         catch (PythonException ex)
                         {
                             Console.WriteLine($"Python error: {ex}");
-                        } // catch
+                        }
                     } // using
 
                     // Delete the temporary file
@@ -819,6 +839,15 @@ namespace UsbApp
 
                     FlashGreenLight(); // Flash the green light
                 } // if
+
+                // Update the maxValue field
+                maxValue = localMaxValue;
+            } // if
+
+            stopwatch.Stop();
+            if (stopwatch.ElapsedMilliseconds > 0)
+            {
+                DebugWindow.Instance.DataTextBox.AppendText($"UpdateBitmapV2 execution time: {stopwatch.ElapsedMilliseconds} ms\n");
             } // if
         } // UpdateBitmapV2
 
