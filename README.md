@@ -1,4 +1,4 @@
-# AA Data Display
+ï»¿# AA Data Display
 
 ## Overview
 This is a .NET Framework 4.8 application designed to simulate and display data packets when AA.<br/>
@@ -23,13 +23,13 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 	The structure should look like this:
 	```bash
 	Release/
-	¢u¢w¢w Python311/
-	¢x   ¢|¢w¢w ... python package files
-	¢u¢w¢w LidarDataDisplay.exe
-	¢x  
-	¢x  ... .dll files, etc.
-	¢x  
-	¢|¢w¢w README.md
+	â”œâ”€â”€ Python311/
+	â”‚   â””â”€â”€ ... python package files
+	â”œâ”€â”€ LidarDataDisplay.exe
+	â”‚  
+	â”‚  ... .dll files, etc.
+	â”‚  
+	â””â”€â”€ README.md
 	```
 1. Run the application inside the folder.
 2. Use the "Start Simulation" button on the debug window to begin simulating UDP packets.
