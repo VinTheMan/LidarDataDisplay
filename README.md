@@ -19,7 +19,7 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 3. Build the solution to restore the necessary NuGet packages.
 
 ## Usage
-0. Make sure the directory of exe file has "Python311" folder and the app is running within the built folder.<br/>
+0. Make sure the directory of exe file has `Python311/` folder and the app is running within the built folder.<br/>
 	The structure should look like this:
 	```bash
 	Release/
