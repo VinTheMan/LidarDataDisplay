@@ -1,7 +1,7 @@
 # AA Data Display
 
 ## Overview
-LidarDataDisplay is a .NET Framework 4.8 application designed to simulate and display data packets when AA.
+LidarDataDisplay is a .NET Framework 4.8 application designed to simulate and display data packets when AA.<br/>
 The application supports two UDP packet formats from RX-AA and BS-AA.
 
 ## Features
@@ -21,7 +21,7 @@ git clone https://github.com/VinTheMan/LidarDataDisplay.git
 ## Usage
 0. Make sure the path of application's exe file has "Python311" folder and the app is running within the built folder.
 The structure should look like this:
-```bash
+```
 Release
 ¢u¢w¢w Python311
 ¢u¢w¢w LidarDataDisplay.exe
@@ -35,7 +35,7 @@ Release
 3. Use the "Clear Text" button to clear the displayed data.
 4. Click on specific segments of result image to enlarge and analyze them.
 
-## Before Diving into Code Structure, You should keep in mind the following packet structures:
+## Before Diving into Code Structure<br/>You should keep in mind the following packet structures:
 ### UDP Packet Structure when RX-AA
 ![Current UDP packet format 20250219-RXAA](https://github.com/user-attachments/assets/4950e0f3-943c-42a0-b350-5f8eb25c50da)
 ### UDP Packet Structure when BS-AA
