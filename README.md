@@ -19,12 +19,11 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 3. Build the solution to restore the necessary NuGet packages.
 
 ## Usage
-0. Make sure the path of application's exe file has "Python311" folder and the app is running within the built folder.<br/>
+0. Make sure the directory of exe file has "Python311" folder and the app is running within the built folder.<br/>
 	The structure should look like this:
-	<!-- TREEVIEW START -->
 	```bash
-	Release
-	¢u¢w¢w Python311
+	Release/
+	¢u¢w¢w Python311/
 	¢x   ¢|¢w¢w ... python package files
 	¢u¢w¢w LidarDataDisplay.exe
 	¢x  
@@ -32,7 +31,6 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 	¢x  
 	¢|¢w¢w README.md
 	```
-	<!-- TREEVIEW END -->
 1. Run the application inside the folder.
 2. Use the "Start Simulation" button on the debug window to begin simulating UDP packets.
 3. Use the "Clear Text" button to clear the displayed data.
