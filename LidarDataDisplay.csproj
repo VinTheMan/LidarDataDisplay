@@ -160,6 +160,9 @@
     <None Include="Python311\_ssl.pyd" />
     <None Include="Python311\_uuid.pyd" />
     <None Include="Python311\_zoneinfo.pyd" />
+    <None Include="README.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
