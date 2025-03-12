@@ -1,7 +1,7 @@
 # AA Data Display
 
 ## Overview
-LidarDataDisplay is a .NET Framework 4.8 application designed to simulate and display data packets when AA.<br/>
+This is a .NET Framework 4.8 application designed to simulate and display data packets when AA.<br/>
 The application supports two UDP packet formats from RX-AA and BS-AA.
 
 ## Features
@@ -29,6 +29,26 @@ Release
 ¢x  ... .dll files, etc.
 ¢x  
 ¢|¢w¢w LidarDataDisplay.exe.config
+```
+```bash
+¢u¢w¢w app
+¢x   ¢u¢w¢w css
+¢x   ¢x   ¢u¢w¢w **/*.css
+¢x   ¢u¢w¢w favicon.ico
+¢x   ¢u¢w¢w images
+¢x   ¢u¢w¢w index.html
+¢x   ¢u¢w¢w js
+¢x   ¢x   ¢u¢w¢w **/*.js
+¢x   ¢|¢w¢w partials/template
+¢u¢w¢w dist (or build)
+¢u¢w¢w node_modules
+¢u¢w¢w bower_components (if using bower)
+¢u¢w¢w test
+¢u¢w¢w Gruntfile.js/gulpfile.js
+¢u¢w¢w README.md
+¢u¢w¢w package.json
+¢u¢w¢w bower.json (if using bower)
+¢|¢w¢w .gitignore
 ```
 1. Run the application inside the folder.
 2. Use the "Start Simulation" button on the debug window to begin simulating UDP packets.
