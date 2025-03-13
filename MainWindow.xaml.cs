@@ -1525,7 +1525,7 @@ namespace UsbApp
 
         private void maxValue_InputKeyDown(object sender, KeyEventArgs e)
         {
-            Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({e.Key})\n")); // test
+            //Dispatcher.Invoke(() => DebugWindow.Instance.DataTextBox.AppendText($"({e.Key})\n")); // test
             if (e.Key == Key.Enter)
             {
                 OldMax = Convert.ToUInt64(((TextBox)sender).Text);
