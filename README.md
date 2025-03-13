@@ -124,14 +124,8 @@ Handles the event when the mouse moves over the image canvas. It updates the hov
 - `ImageCanvas_MouseLeave(object sender, MouseEventArgs e)`
 Handles the event when the mouse leaves the image canvas. It clears the cross and resets the hover position.
 
-- `maxValue_InputKeyDown(object sender, KeyEventArgs e)`
-Handles the event when a key is pressed in the max value input box. It updates the old max value when the Enter key is pressed.
-
 - `ShowEnlargedSegment(int segmentIndex)`
 Shows the enlarged segment window for the specified segment index.
-
-- `FlashGreenLight()`
-Flashes the green light indicator for a short duration.
 
 ## Contact
 For any questions or suggestions, please contact [vincent911016@gmail.com](mailto:vincent911016@gmail.com).

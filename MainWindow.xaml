@@ -111,7 +111,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Max Sampling Range:" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
-                            <TextBox x:Name="OldMaxTextBox_1560" Text="{Binding OldMax, Mode=TwoWay}" Width="100" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" FontSize="16"/>
+                            <TextBox x:Name="OldMaxTextBox_1560" Text="{Binding OldMax, Mode=TwoWay}" Width="100" Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,0,0,0" FontSize="16" KeyDown="maxValue_InputKeyDown"/>
                             <TextBlock x:Name="ThetaAngleTextBlock" Margin="60,0,0,0" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Top" Foreground="#FFFFFF" FontSize="16"/>
                         </Grid>
                         <TextBlock x:Name="HoverPositionTextBlock_1560" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="30,10,0,0" Foreground="#FFFFFF" FontSize="16" KeyDown="maxValue_InputKeyDown"/>

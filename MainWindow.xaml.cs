@@ -161,7 +161,6 @@ namespace UsbApp
 
             Runtime.PythonDLL = Path.Combine(pythonPath, "python311.dll");
             PythonEngine.Initialize();
-
         } // MainWindow
 
         private void MainWindow_Closed(object sender, System.EventArgs e)
