@@ -37,9 +37,9 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 4. Click on specific segments of result image to enlarge and analyze them.
 
 ## Before Diving into Code Structure<br/>You should keep in mind the following packet structures:
-### UDP Packet Structure when RX-AA
+### UDP Packet Structure when RX-AA (1560 x 105)
 ![Current UDP packet format 20250219-RXAA](https://github.com/user-attachments/assets/4950e0f3-943c-42a0-b350-5f8eb25c50da)
-### UDP Packet Structure when BS-AA
+### UDP Packet Structure when BS-AA (520 x 105)
 ![Current UDP packet format 20250219-BSAA](https://github.com/user-attachments/assets/d31dec50-988e-45e4-ab79-a77f19ff0d5e)
 
 ## Code Structure
