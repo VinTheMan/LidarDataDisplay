@@ -1,16 +1,8 @@
-﻿using System;
-using System.ComponentModel;
-using System.IO;
-using System.IO.Ports;
-using System.Runtime.CompilerServices;
-using System.Windows;
-using System.Windows.Controls; // Add this using directive
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+﻿using System.IO;
+using System.Windows.Controls;
 using System.Windows.Threading;
-using System.Net;
-using System.Net.Sockets;
+using System.Windows;
+using System;
 
 namespace UsbApp
 {
@@ -20,6 +12,9 @@ namespace UsbApp
         private DispatcherTimer _timer;
         private int _packetIndex = 0;
         private Random _rand;
+        private bool _isBlackFrame = false;
+        private int _blackFrameDuration = 3; // Duration in seconds
+        private int _blackFrameCounter = 0;
 
         private DebugWindow()
         {
@@ -98,12 +93,31 @@ namespace UsbApp
             // Update the random seed for each frame
             _rand = new Random();
 
+            // Check if we should generate black frames
+            if (_isBlackFrame)
+            {
+                _blackFrameCounter++;
+                if (_blackFrameCounter >= _blackFrameDuration)
+                {
+                    _isBlackFrame = false;
+                    _blackFrameCounter = 0;
+                } // if
+            } // if
+            else
+            {
+                // Randomly decide to start generating black frames
+                if (_rand.Next(100) < 10) // 10% chance to start black frames
+                {
+                    _isBlackFrame = true;
+                } // if
+            } // else
+
             // Simulate 105 packets per second
             for (int i = 0; i < 105; i++)
             {
-                if( ((MainWindow)Application.Current.MainWindow).CurrentTab == 1560)
+                if (((MainWindow)Application.Current.MainWindow).CurrentTab == 1560)
                 {
-                    for( int j = 0;  j < 4; j++)
+                    for (int j = 0; j < 4; j++)
                     {
                         byte[] packet = GenerateMockUdpPacket(i, Scenario.Valid, j);
                         Dispatcher.Invoke(() => ((MainWindow)Application.Current.MainWindow).ParseUdpPacket(packet));
@@ -140,7 +154,10 @@ namespace UsbApp
                 // AmbientData
                 for (int i = 2; i < UdpPacketSize; i++)
                 {
-                    packet[i] = (byte)_rand.Next(256);
+                    if (_isBlackFrame)
+                        packet[i] = 0;
+                    else
+                        packet[i] = (byte)_rand.Next(256);
                 } // for
             } // if
             else
@@ -151,7 +168,10 @@ namespace UsbApp
                 // AmbientData
                 for (int i = 1; i < UdpPacketSize; i++)
                 {
-                    packet[i] = (byte)_rand.Next(256);
+                    if (_isBlackFrame)
+                        packet[i] = 0;
+                    else
+                        packet[i] = (byte)_rand.Next(256);
                 } // for
             } // else
 

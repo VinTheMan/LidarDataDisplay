@@ -713,7 +713,8 @@ namespace UsbApp
                     double adjustedX = x - centerX;
                     double adjustedY = centerY - y; // Invert y to match the coordinate system
 
-                    Dispatcher.Invoke(() => {
+                    Dispatcher.Invoke(() =>
+                    {
                         CoordinateDataTextBlock_520_1.Text = $"Center ({adjustedX:F0}, {adjustedY:F0})";
                         PhiDataTextBlock_520_1.Text = $"{(phi * 180 / 3.1416):F2}° ccw from the horizontal.";
                     });
@@ -743,12 +744,30 @@ namespace UsbApp
         {
             _lastPsn = -1; // Reset the last PSN value
             _currentLine = 0;
-            // Save the data before resetting
-            Array.Copy(_receivedPackets, _receivedPackets_save, _receivedPackets.Length);
-            Array.Copy(_receivedPacketFlags, _receivedPacketFlags_save, _receivedPacketFlags.Length);
+            // Save the data before resetting (1560)
+            for (int i = 0; i < TotalLines && _receivedPackets[i] != null; i++)
+            {
+                _receivedPacketFlags_save[i] = _receivedPacketFlags[i]; // Deep copy the received packet flags
+                if (_receivedPackets_save[i] == null)
+                {
+                    _receivedPackets_save[i] = new byte[_receivedPackets[i].Length];
+                } // for
+
+                for (int j = 0; _receivedPackets[i] != null && j < _receivedPackets[i].Length; j++)
+                {
+                    _receivedPackets_save[i][j] = _receivedPackets[i][j]; // Deep copy the received packets
+                } // for
+            } // for
+
             Array.Clear(_receivedPackets, 0, _receivedPackets.Length);
             Array.Clear(_receivedPacketFlags, 0, _receivedPacketFlags.Length);
             // InitializeBitmap(); // Reinitialize the bitmap
+            // Reset current frame max values
+            for (int i = 0; i < _currentFrameMaxValues.Length; i++)
+            {
+                _currentFrameMaxValues[i] = 0;
+                _currentFrameMaxCoordinates[i] = new Point(0, 0);
+            } // for
         } // ResetData
 
 
