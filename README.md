@@ -80,6 +80,7 @@ Asynchronously listens for incoming UDP packets and processes them.
 Parses the received UDP packet and updates the bitmap with the parsed data.<br/>
 > [!NOTE] 
 > I use bitmask to keep track of the four packets in the 1560 format.
+
 `_receivedPacketFlagsDict[psn] == 0x0F`<br/>
 means all four packets are received. ( 0x0F == 1111 )<br/>
 `_receivedPacketFlagsDict[psn] |= (1 << udpNumber)`<br/>		
