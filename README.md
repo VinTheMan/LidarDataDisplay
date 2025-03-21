@@ -78,12 +78,14 @@ Asynchronously listens for incoming UDP packets and processes them.
 
 - `ParseUdpPacket(byte[] data)`<br/>
 Parses the received UDP packet and updates the bitmap with the parsed data.<br/>
-I use bitmask to keep track of the four packets in the 1560 format.<br/><br/>
+I use bitmask to keep track of the four packets when processing the 1560 format.<br/><br/>
 `_receivedPacketFlagsDict[psn] == 0x0F`<br/>
-means all four packets are received. ( 0x0F == 1111 )<br/><br/>
+🔍means all four packets are received. ( 0x0F == 1111 )<br/><br/>
 `_receivedPacketFlagsDict[psn] |= (1 << udpNumber)`<br/>		
-`1 << udpNumber`:<br/>This operation shifts the number 1 to the left by udpNumber positions. This creates a bitmask where only the bit corresponding to udpNumber is set to 1.<br/>
-`|=`:<br/>This is the bitwise OR assignment operator. It updates the value of _receivedPacketFlagsDict[psn] by performing a bitwise OR with the current value and the bitmask created by 1 << udpNumber.<br/>
+`1 << udpNumber`<br/>
+🔍This operation shifts the number 1 to the left by udpNumber positions. This creates a bitmask where only the bit corresponding to udpNumber is set to 1.<br/>
+`|=`<br/>
+🔍This is the bitwise OR assignment operator. It updates the value of _receivedPacketFlagsDict[psn] by performing a bitwise OR with the current value and the bitmask created by `1 << udpNumber`.<br/>
 
 - `CalculateChecksum(byte[] data, int length)`
 Calculates the checksum for the given data.
