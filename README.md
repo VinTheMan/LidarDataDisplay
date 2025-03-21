@@ -52,29 +52,23 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 - `MainWindow()`
 The constructor initializes the main window, sets up the data context, initializes the bitmap, and opens the debug window. It also sets up the Python environment for further processing.
 
-- `MainWindow_Closed(object sender, EventArgs e)`
-Handles the event when the main window is closed. It stops listening for UDP packets and shuts down the application.
-
 - `OnPropertyChanged([CallerMemberName] string name = null)`
 Notifies the UI about property changes to update the binding.
 
 - `MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)`
-Handles the event when the selected tab changes. It updates the current tab, stops listening for UDP packets, and resets the data.
+Handles the event when the selected tab changes (format change between 1560 & 520). It updates the current tab, stops listening for UDP packets, and resets the data.
 
 - `SaveImageButton_Click(object sender, RoutedEventArgs e)`
-Handles the event when the "Save Image" button is clicked. It opens a file dialog to save the current image as a PNG file.
+Handles the event when the "Save Image" button is clicked. It opens a file dialog to save the current result image as a PNG file.
 
 - `SaveCsvButton_Click(object sender, RoutedEventArgs e)`
-Handles the event when the "Save CSV" button is clicked. It opens a file dialog to save the current data as a CSV file.
+Handles the event when the "Save CSV" button is clicked. It opens a file dialog to save the current raw value data as a CSV file.
 
 - `StartListeningButton_Click(object sender, RoutedEventArgs e)`
 Handles the event when the "Start Listening" button is clicked. It starts or stops listening for UDP packets and updates the button text accordingly.
 
-- `StopListening()`
-Stops listening for UDP packets and updates the UI to reflect the stopped state.
-
 - `ListenForUdpPackets()`
-Asynchronously listens for incoming UDP packets and processes them.
+Asynchronously listens for incoming UDP packets and processes them. Called when "Start Listening" button is clicked.
 
 - `ParseUdpPacket(byte[] data)`<br/>
 Parses the received UDP packet and updates the bitmap with the parsed data.<br/>
@@ -88,22 +82,22 @@ I use bitmask to keep track of the four packets when processing the 1560 format.
 🔍This is the bitwise OR assignment operator. It updates the value of _receivedPacketFlagsDict[psn] by performing a bitwise OR with the current value and the bitmask created by `1 << udpNumber`.<br/>
 
 - `CalculateChecksum(byte[] data, int length)`
-Calculates the checksum for the given data.
+Calculates the checksum for the given data. Currently not in use due to the packets do not have correct checksums (Mar 21, 2025) 
 
 - `InitializeBitmap()`
-Initializes the bitmap for displaying the data.
+Initializes the bitmap for displaying the data. Make it so the UI starts with a pure black image ready to be painted.
 
 - `UpdateBitmap()`
-Updates the bitmap with the received data and calculates centroids.
+Updates the bitmap for the 1560 format with the received data and calculates centroids.
 
 - `UpdateBitmapV2()`
 Updates the bitmap for the 520 format with the received data and calculates centroids.
 
 - `ResetData()`
-Resets the data buffers and flags for the next frame.
+Resets the data buffers and flags for the next frame. Also temp save the data in case user clicks the "Save Data" button.
 
 - `CalculateCentroids()`
-Calculates the centroids for the segments in the 1560 format and updates the UI with the calculated values.
+Calculates the centroids for the 3 segments in the 1560 format and updates the UI with the calculated values.
 
 - `CalculateCentroidsOneSet()`
 Calculates the centroid for the entire image in the 520 format and updates the UI with the calculated values.
@@ -115,10 +109,10 @@ Draws the axes and centroids on the bitmap for the 1560 format.
 Draws the axes and centroid on the bitmap for the 520 format.
 
 - `DrawGraphs()`
-Draws the X and Y axis graphs for the 1560 format.
+Draws the X and Y axis graphs for the 1560 format. Called by UpdateBitmap().
 
 - `DrawGraphsOneSet()`
-Draws the X and Y axis graphs for the 520 format.
+Draws the X and Y axis graphs for the 520 format. Called by UpdateBitmapV2().
 
 - `ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)`
 Handles the event when the left mouse button is clicked on the 1560 image canvas. It shows the enlarged segment window for the clicked segment.
