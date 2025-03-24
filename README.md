@@ -49,25 +49,25 @@ The application supports two UDP packet formats from RX-AA and BS-AA.
 - **AssemblyInfo.cs**: Contains metadata about the assembly.
 
 ### Key Methods
-- `MainWindow()`
+- `MainWindow()`<br/>
 The constructor initializes the main window, sets up the data context, initializes the bitmap, and opens the debug window. It also sets up the Python environment for further processing.
 
-- `OnPropertyChanged([CallerMemberName] string name = null)`
+- `OnPropertyChanged([CallerMemberName] string name = null)`<br/>
 Notifies the UI about property changes to update the binding.
 
-- `MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)`
+- `MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)`<br/>
 Handles the event when the selected tab changes (format change between 1560 & 520). It updates the current tab, stops listening for UDP packets, and resets the data.
 
-- `SaveImageButton_Click(object sender, RoutedEventArgs e)`
+- `SaveImageButton_Click(object sender, RoutedEventArgs e)`<br/>
 Handles the event when the "Save Image" button is clicked. It opens a file dialog to save the current result image as a PNG file.
 
-- `SaveCsvButton_Click(object sender, RoutedEventArgs e)`
+- `SaveCsvButton_Click(object sender, RoutedEventArgs e)`<br/>
 Handles the event when the "Save CSV" button is clicked. It opens a file dialog to save the current raw value data as a CSV file.
 
-- `StartListeningButton_Click(object sender, RoutedEventArgs e)`
+- `StartListeningButton_Click(object sender, RoutedEventArgs e)`<br/>
 Handles the event when the "Start Listening" button is clicked. It starts or stops listening for UDP packets and updates the button text accordingly.
 
-- `ListenForUdpPackets()`
+- `ListenForUdpPackets()`<br/>
 Asynchronously listens for incoming UDP packets and processes them. Called when "Start Listening" button is clicked.
 
 - `ParseUdpPacket(byte[] data)`<br/>
@@ -81,52 +81,57 @@ I use bitmask to keep track of the four packets when processing the 1560 format.
 `|=`<br/>
 🔍This is the bitwise OR assignment operator. It updates the value of _receivedPacketFlagsDict[psn] by performing a bitwise OR with the current value and the bitmask created by `1 << udpNumber`.<br/>
 
-- `CalculateChecksum(byte[] data, int length)`
+- `CalculateChecksum(byte[] data, int length)`<br/>
 Calculates the checksum for the given data. Currently not in use due to the packets do not have correct checksums (Mar 21, 2025) 
 
-- `InitializeBitmap()`
+- `InitializeBitmap()`<br/>
 Initializes the bitmap for displaying the data. Make it so the UI starts with a pure black image ready to be painted.
 
-- `UpdateBitmap()`
+- `UpdateBitmap()`<br/>
 Updates the bitmap for the 1560 format with the received data and calculates centroids.
 
-- `UpdateBitmapV2()`
+- `UpdateBitmapV2()`<br/>
 Updates the bitmap for the 520 format with the received data and calculates centroids.
 
-- `ResetData()`
+- `ResetData()`<br/>
 Resets the data buffers and flags for the next frame. Also temp save the data in case user clicks the "Save Data" button.
 
-- `CalculateCentroids()`
-Calculates the centroids for the 3 segments in the 1560 format and updates the UI with the calculated values.
+- `CalculateCentroids()`<br/>
+Calculates the centroids for the 3 segments in the 1560 format and updates the UI with the calculated values.<br/>
+![Centroid Location](https://github.com/user-attachments/assets/fbe1912c-d544-4912-a7aa-99922a9d13ab)
+![D4-Sigma Method](https://github.com/user-attachments/assets/bddfa3a8-a2a7-4f4a-b005-c13fbcebec56)
 
-- `CalculateCentroidsOneSet()`
-Calculates the centroid for the entire image in the 520 format and updates the UI with the calculated values.
+- `CalculateCentroidsOneSet()`<br/>
+Calculates the centroid for the entire image in the 520 format and updates the UI with the calculated values.<br/>
+I use this Python module for 520 format calculations, embedded in the WPF application: [laserbeamsize](https://github.com/scottprahl/laserbeamsize)<br/>
+**This is the reason that the exe file must be present alongside `Python311/`**<br/>
+**This is the only function that depends on a python module.**
 
-- `DrawAxesAndCentroids(List<Point> centroids, int topBottomSegmentHeight, int middleSegmentHeight, int dontCareHeight)`
+- `DrawAxesAndCentroids(List<Point> centroids, int topBottomSegmentHeight, int middleSegmentHeight, int dontCareHeight)`<br/>
 Draws the axes and centroids on the bitmap for the 1560 format.
 
-- `DrawAxesAndCentroidOneSet(Point centroid, int imageHeight)`
+- `DrawAxesAndCentroidOneSet(Point centroid, int imageHeight)`<br/>
 Draws the axes and centroid on the bitmap for the 520 format.
 
-- `DrawGraphs()`
+- `DrawGraphs()`<br/>
 Draws the X and Y axis graphs for the 1560 format. Called by UpdateBitmap().
 
-- `DrawGraphsOneSet()`
+- `DrawGraphsOneSet()`<br/>
 Draws the X and Y axis graphs for the 520 format. Called by UpdateBitmapV2().
 
-- `ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)`
+- `ImageCanvas_1560_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)`<br/>
 Handles the event when the left mouse button is clicked on the 1560 image canvas. It shows the enlarged segment window for the clicked segment.
 
-- `ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)`
+- `ImageCanvas_520_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)`<br/>
 Handles the event when the left mouse button is clicked on the 520 image canvas. It shows the enlarged segment window for the entire image.
 
-- `ImageCanvas_MouseMove(object sender, MouseEventArgs e)`
+- `ImageCanvas_MouseMove(object sender, MouseEventArgs e)`<br/>
 Handles the event when the mouse moves over the image canvas. It updates the hover position and draws a cross at the current mouse position.
 
-- `ImageCanvas_MouseLeave(object sender, MouseEventArgs e)`
+- `ImageCanvas_MouseLeave(object sender, MouseEventArgs e)`<br/>
 Handles the event when the mouse leaves the image canvas. It clears the cross and resets the hover position.
 
-- `ShowEnlargedSegment(int segmentIndex)`
+- `ShowEnlargedSegment(int segmentIndex)`<br/>
 Shows the enlarged segment window for the specified segment index.
 
 ## Contact
