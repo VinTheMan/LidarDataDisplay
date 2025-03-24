@@ -97,7 +97,8 @@ Updates the bitmap for the 520 format with the received data and calculates cent
 Resets the data buffers and flags for the next frame. Also temp save the data in case user clicks the "Save Data" button.
 
 - `CalculateCentroids()`
-Calculates the centroids for the 3 segments in the 1560 format and updates the UI with the calculated values.
+Calculates the centroids for the 3 segments in the 1560 format and updates the UI with the calculated values.<br/>
+
 
 - `CalculateCentroidsOneSet()`
 Calculates the centroid for the entire image in the 520 format and updates the UI with the calculated values.
